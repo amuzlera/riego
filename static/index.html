@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ESP Console</title>
+  <style>
+    :root { --bg:#0b1020; --card:#111827; --fg:#e5e7eb; --muted:#9ca3af; --accent:#22c55e }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:800px;margin:32px auto;padding:0 16px}
+    h1{margin:0 0 12px}
+    .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);margin-bottom:20px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+    input[type=text]{flex:1;min-width:220px;background:#0f172a;border:1px solid #1f2937;border-radius:12px;padding:10px;color:var(--fg)}
+    textarea{width:100%;min-height:180px;background:#0f172a;border:1px solid #1f2937;border-radius:12px;padding:10px;color:var(--fg);font-family:monospace}
+    button{background:var(--accent);border:none;border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{color:var(--muted);font-size:.9rem}
+    pre{white-space:pre-wrap;background:#0f172a;border-radius:12px;padding:12px;overflow:auto;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Consola ESP32</h1>
+
+    <!-- Consola de comandos -->
+    <div class="card">
+      <h3>Consola</h3>
+      <div class="row">
+        <input id="cmd" type="text" placeholder="Comando (p. ej. ls)" value="ls" />
+        <button id="run">Ejecutar</button>
+      </div>
+      <pre id="out">Salida aparecerá aquí…</pre>
+    </div>
+
+    <!-- Upload -->
+    <div class="card">
+      <h3>Upload archivo</h3>
+      <div class="row">
+        <input id="filename" type="text" placeholder="Nombre de archivo (ej: main.py)" />
+        <button id="uploadBtn">Upload</button>
+      </div>
+      <textarea id="filecontent" placeholder="Escribí o pegá el contenido aquí..."></textarea>
+      <pre id="uploadOut">Estado upload…</pre>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
