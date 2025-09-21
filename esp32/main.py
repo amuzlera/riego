@@ -1,18 +1,22 @@
 import uasyncio as asyncio
 from server import start_server
-from task import riego_loop
+from task import riego_scheduler_loop
+from server_utils import log
 
 
 async def main():
-    
+
     asyncio.create_task(start_server())   # tu endpoint HTTP
-    asyncio.create_task(riego_loop())     # tu loop de riego
+    asyncio.create_task(riego_scheduler_loop(
+        "config_riego.json", poll_s=1, reload_s=3))
     while True:
         await asyncio.sleep(1)
 
 print("RUNING MAIN")
 asyncio.run(main())
 
+print("RUNNING MAIN")
+log("RUNNING_MAIN")
 # mpremote connect /dev/ttyUSB0
 
 '''
