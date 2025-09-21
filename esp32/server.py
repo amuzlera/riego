@@ -23,6 +23,7 @@ def connect_wifi(ssid: str, password: str, ip: str, netmask: str, gateway: str, 
     print("Conectado a WiFi. IP:", sta_if.ifconfig()[0])
     return sta_if
 
+
 # ---------- Auth ----------
 def check_auth(header):
     if not header or "Authorization" not in header:
@@ -31,6 +32,7 @@ def check_auth(header):
     expected = ubinascii.b2a_base64(b"%s:%s" % (
         config.HTTP_USER.encode(), config.HTTP_PASS.encode())).decode().strip()
     return auth_value == expected
+
 
 # ---------- Cliente ----------
 async def handle_client(reader, writer):
@@ -95,15 +97,10 @@ async def handle_client(reader, writer):
         except:
             pass
 
+
 # ---------- Servidor ----------
 async def start_server():
     print("Servidor escuchando en 0.0.0.0:80")
-    server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
-    await server.wait_closed()
-
-# ---------- Loop principal ----------
-async def main():
-    # Conectar WiFi antes de arrancar el servidor
     connect_wifi(
         ssid=config.WIFI_SSID,
         password=config.WIFI_PASS,
@@ -112,12 +109,11 @@ async def main():
         gateway="192.168.0.1",
         dns="8.8.8.8"
     )
+    return await asyncio.start_server(handle_client, "0.0.0.0", 80)
 
-    # Arrancar servidor
+
+# ---------- Loop principal ----------
+async def main():
     asyncio.create_task(start_server())
-
     while True:
         await asyncio.sleep(1)
-
-# ---------- Entry point ----------
-asyncio.run(main())  # Solo descomentá para correr directamente

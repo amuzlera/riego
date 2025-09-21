@@ -1,10 +1,14 @@
+import time
 import ujson as json
+
 
 def send_response(writer, data, status="200 OK", content_type="application/json"):
     if isinstance(data, dict):
         data = json.dumps(data)
-    resp = "HTTP/1.1 {}\r\nContent-Type: {}\r\n\r\n{}".format(status, content_type, data)
+    resp = "HTTP/1.1 {}\r\nContent-Type: {}\r\n\r\n{}".format(
+        status, content_type, data)
     writer.write(resp.encode())
+
 
 def parse_headers(header_text):
     headers = {}
@@ -15,6 +19,7 @@ def parse_headers(header_text):
             headers[key.strip()] = value.strip()
     return headers
 
+
 def parse_query(query):
     params = {}
     if query:
@@ -24,9 +29,25 @@ def parse_query(query):
                 params[k] = v
     return params
 
+
 def _err_payload(e):
     try:
         etype = type(e).__name__
         return {"error": "{}: {}".format(etype, repr(e))}
-    except:
+    except BaseException:
         return {"error": "unknown"}
+
+
+# --- logger simple ---
+LOG_FILE = "riego.log"
+
+
+def log(msg):
+    ts = time.localtime()
+    line = "{:02d}:{:02d}:{:02d} - {}\n".format(ts[3], ts[4], ts[5], msg)
+    try:
+        with open(LOG_FILE, "a") as f:
+            f.write(line)
+    except BaseException:
+        pass
+    print(line, end="")

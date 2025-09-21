@@ -1,5 +1,5 @@
-programed_times = {
-    "tz_offset_seconds": -10800,
+{
+    "tz_offset_seconds": 10800,
     "zones": {
         "zona1": 4,
         "zona2": 5,

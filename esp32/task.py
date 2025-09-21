@@ -27,7 +27,7 @@ def parse_hhmm_to_minutes(hhmm):
 
 def minutes_since_midnight(t):
     # t = time.localtime()
-    return t[3]*60 + t[4]
+    return t[3] * 60 + t[4]
 
 # ------------------ Carga y parsing de config ------------------
 
@@ -207,6 +207,34 @@ class ProgramScheduler:
                 return plan
         return None
 
+# ------------------ Próximo evento ------------------
+
+
+def next_event_in(tz_offset, schedule):
+    """
+    Devuelve segundos hasta el próximo evento programado
+    (o None si no hay nada futuro).
+    """
+    t = now_local(tz_offset)
+    wd_now = t[6]
+    min_now = minutes_since_midnight(t)
+
+    best_delta = None
+    for delta_day in range(0, 7):  # mirar la semana completa
+        wd = (wd_now + delta_day) % 7
+        if wd not in schedule:
+            continue
+        for start_min, _ in schedule[wd]:
+            abs_min_now = wd_now * 1440 + min_now
+            abs_min_evt = wd * 1440 + start_min + delta_day * 1440
+            delta = abs_min_evt - abs_min_now
+            if delta < 0:
+                continue
+            sec = delta * 60
+            if best_delta is None or sec < best_delta:
+                best_delta = sec
+    return best_delta
+
 # ------------------ Loop principal ------------------
 
 
@@ -215,7 +243,9 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
     - Relee config cada 'reload_s' segundos.
     - Chequea disparos cada 'poll_s' segundos.
     - Ejecuta programas secuencialmente, aplicando la política.
+    - Loguea hora actual y tiempo hasta el próximo evento (1 vez por minuto).
     """
+    print("RUNNING riego_scheduler_loop")
     last_cfg_text = None
     cfg = load_config(config_path)
     tz = cfg["tz_offset_seconds"]
@@ -226,6 +256,8 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
     policy = cfg["policy"]
 
     reload_acc = 0
+    last_reported_min = None  # throttle: log una vez por minuto restante
+
     while True:
         # Reload periódico
         if reload_s and reload_acc <= 0:
@@ -246,6 +278,8 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
                     sched = ProgramScheduler(zc)
                     log("Config recargada.")
                     last_cfg_text = cfg_text
+                    # forzar log inmediato del próximo evento
+                    last_reported_min = None
                 except Exception as e:
                     log(f"Error parseando config: {e}")
             reload_acc = reload_s
@@ -255,6 +289,26 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
         if plan:
             # Lanza el programa sin bloquear el loop de polling
             asyncio.create_task(sched.run_program(plan))
+            # al disparar, forzamos logeo del próximo evento en el siguiente ciclo
+            last_reported_min = None
+
+        # ---- Log de hora y countdown al próximo evento (1 vez por minuto) ----
+        tnow = now_local(tz)
+        wait_s = next_event_in(tz, schedule)
+        if wait_s is None:
+            if last_reported_min != "none":
+                log("Hora actual: {:02d}:{:02d}:{:02d}".format(tnow[3], tnow[4], tnow[5]))
+                log("No hay ejecuciones futuras programadas")
+                last_reported_min = "none"
+        else:
+            remaining_min = wait_s // 60
+            if remaining_min != last_reported_min:
+                hh = wait_s // 3600
+                mm = (wait_s % 3600) // 60
+                ss = wait_s % 60
+                log("Hora actual: {:02d}:{:02d}:{:02d}".format(tnow[3], tnow[4], tnow[5]))
+                log("Tiempo hasta la próxima ejecución: {}h {}m {}s".format(hh, mm, ss))
+                last_reported_min = remaining_min
 
         await asyncio.sleep(poll_s)
         if reload_acc:
