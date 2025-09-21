@@ -6,22 +6,14 @@ from server_utils import send_response, parse_headers, _err_payload
 from endpoints import ls, cat, upload, rm
 
 # ---------- WiFi ----------
-def connect_wifi(ssid: str, password: str, ip: str, netmask: str, gateway: str, dns: str):
-    """
-    Conecta el ESP32 al WiFi con IP fija.
-    """
-    sta_if = network.WLAN(network.STA_IF)
-    sta_if.active(True)
-    sta_if.connect(ssid, password)
+sta_if = network.WLAN(network.STA_IF)
+sta_if.active(True)
+sta_if.connect(config.WIFI_SSID, config.WIFI_PASS)
 
-    # Esperar hasta conectarse
-    while not sta_if.isconnected():
-        asyncio.sleep(0.1)
+while not sta_if.isconnected():
+    pass
+print("Conectado a WiFi:", sta_if.ifconfig())
 
-    # Fijar IP estática
-    sta_if.ifconfig((ip, netmask, gateway, dns))
-    print("Conectado a WiFi. IP:", sta_if.ifconfig()[0])
-    return sta_if
 
 # ---------- Auth ----------
 def check_auth(header):
@@ -31,6 +23,7 @@ def check_auth(header):
     expected = ubinascii.b2a_base64(b"%s:%s" % (
         config.HTTP_USER.encode(), config.HTTP_PASS.encode())).decode().strip()
     return auth_value == expected
+
 
 # ---------- Cliente ----------
 async def handle_client(reader, writer):
@@ -95,29 +88,16 @@ async def handle_client(reader, writer):
         except:
             pass
 
+
 # ---------- Servidor ----------
 async def start_server():
     print("Servidor escuchando en 0.0.0.0:80")
     server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
     await server.wait_closed()
 
+
 # ---------- Loop principal ----------
 async def main():
-    # Conectar WiFi antes de arrancar el servidor
-    connect_wifi(
-        ssid=config.WIFI_SSID,
-        password=config.WIFI_PASS,
-        ip="192.168.0.50",        # IP fija
-        netmask="255.255.255.0",
-        gateway="192.168.0.1",
-        dns="8.8.8.8"
-    )
-
-    # Arrancar servidor
     asyncio.create_task(start_server())
-
     while True:
         await asyncio.sleep(1)
-
-# ---------- Entry point ----------
-asyncio.run(main())  # Solo descomentá para correr directamente
