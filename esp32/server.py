@@ -2,7 +2,7 @@ import uasyncio as asyncio
 import network
 import ubinascii
 import config
-from server_utils import send_response, parse_headers, _err_payload
+from server_utils import reset, send_response, parse_headers, _err_payload
 from endpoints import ls, cat, upload, rm, tail
 
 # ---------- WiFi ----------
@@ -85,6 +85,10 @@ async def handle_client(reader, writer):
 
         elif route == "/rm":
             await rm.handle(writer, query)
+
+        elif route == "/reset":
+            send_response(writer, {"status": "Reseteando controlador.."})
+            await reset()
 
         else:
             send_response(writer, {"error": f"Ruta {route} no encontrada"}, "404 Not Found")

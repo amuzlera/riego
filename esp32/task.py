@@ -292,7 +292,7 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
                 hh = wait_s // 3600
                 mm = (wait_s % 3600) // 60
                 ss = wait_s % 60
-                log("Tiempo hasta la proxima ejecución: {}h {}m {}s".format(hh, mm, ss))
+                log("Tiempo hasta la proxima ejecucion: {}h {}m {}s".format(hh, mm, ss))
                 last_reported_min = remaining_min
 
         await asyncio.sleep(poll_s)

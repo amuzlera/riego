@@ -54,4 +54,5 @@ mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/rm.py :endpoints/
 mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/__init__.py :endpoints/
 mpremote connect /dev/ttyUSB0 fs cp esp32/server.py :
 mpremote connect /dev/ttyUSB0 fs cp esp32/main.py :
+mpremote connect /dev/ttyUSB0 fs cp esp32/task.py :
 '''
