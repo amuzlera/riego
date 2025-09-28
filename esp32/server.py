@@ -3,7 +3,7 @@ import network
 import ubinascii
 import config
 from server_utils import send_response, parse_headers, _err_payload
-from endpoints import ls, cat, upload, rm
+from endpoints import ls, cat, upload, rm, tail
 
 # ---------- WiFi ----------
 def connect_wifi(ssid: str, password: str, ip: str, netmask: str, gateway: str, dns: str):
@@ -73,6 +73,9 @@ async def handle_client(reader, writer):
         print(route, query)
         if route == "/ls":
             await ls.handle(writer, query)
+        
+        elif route == "/tail":
+            await tail.handle(writer, query)
 
         elif route == "/cat":
             await cat.handle(writer, query)

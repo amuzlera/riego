@@ -1,8 +1,8 @@
 import uasyncio as asyncio
 import ujson as json
-import time
 from machine import Pin
 from server_utils import log
+from time_utils import now_local
 
 # ------------------ Helpers de día/tiempo ------------------
 
@@ -11,13 +11,6 @@ SPANISH_WD = {
     "jueves": 3, "viernes": 4, "sabado": 5, "sábado": 5,
     "domingo": 6
 }
-DEFAULT_TZ = -3 * 3600  # UTC-3
-
-
-def now_local(tz_offset):
-    # Si tu RTC está en UTC, aplicamos offset fijo.
-    # Si ya está en localtime, podés simplificar a time.localtime()
-    return time.localtime(time.time() + tz_offset)
 
 
 def parse_hhmm_to_minutes(hhmm):
@@ -55,7 +48,6 @@ def _normalize_day_entries(entries):
 def load_config(path):
     """
     Devuelve un dict con:
-      tz_offset_seconds: int
       zones: {name: pin}
       schedule: { wd_int: [(start_min, duration_s), ...] }
       policy: {mode, include?, multipliers?}
@@ -66,13 +58,11 @@ def load_config(path):
     except Exception as e:
         log(f"Config: no se pudo leer: {e}")
         return {
-            "tz_offset_seconds": DEFAULT_TZ,
             "zones": {},
             "schedule": {},
             "policy": {"mode": "all_same_time"}
         }
 
-    tz = int(raw.get("tz_offset_seconds", DEFAULT_TZ))
     zones = raw.get("zones", {})
     prog = raw.get("programed_times", {})
     policy = raw.get("policy", {"mode": "all_same_time"})
@@ -87,7 +77,6 @@ def load_config(path):
         if day_list:
             schedule[wd] = sorted(day_list, key=lambda x: x[0])  # por hora
     return {
-        "tz_offset_seconds": tz,
         "zones": zones,
         "schedule": schedule,
         "policy": policy
@@ -187,12 +176,12 @@ class ProgramScheduler:
             finally:
                 self.zc.off_all()
 
-    async def tick(self, tz_offset, schedule, policy):
+    async def tick(self, schedule, policy):
         """
         Chequea si algún evento debe dispararse "ahora".
         Retorna plan si debe disparar, o None si no.
         """
-        t = now_local(tz_offset)
+        t = now_local()
         wd = t[6]
         minute_now = minutes_since_midnight(t)
 
@@ -210,12 +199,12 @@ class ProgramScheduler:
 # ------------------ Próximo evento ------------------
 
 
-def next_event_in(tz_offset, schedule):
+def next_event_in(schedule):
     """
     Devuelve segundos hasta el próximo evento programado
     (o None si no hay nada futuro).
     """
-    t = now_local(tz_offset)
+    t = now_local()
     wd_now = t[6]
     min_now = minutes_since_midnight(t)
 
@@ -248,7 +237,6 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
     print("RUNNING riego_scheduler_loop")
     last_cfg_text = None
     cfg = load_config(config_path)
-    tz = cfg["tz_offset_seconds"]
     zc = ZonesController(cfg["zones"] or {"zona1": 4})  # fallback a LED pin 4
     sched = ProgramScheduler(zc)
 
@@ -270,7 +258,6 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
             if cfg_text and cfg_text != last_cfg_text:
                 try:
                     cfg = json.loads(cfg_text)
-                    tz = int(cfg.get("tz_offset_seconds", tz))
                     zc = ZonesController(cfg.get("zones", zc.zones))
                     schedule = load_config(config_path)["schedule"]
                     policy = cfg.get("policy", policy)
@@ -285,7 +272,7 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
             reload_acc = reload_s
 
         # Tick de programación
-        plan = await sched.tick(tz, schedule, policy)
+        plan = await sched.tick(schedule, policy)
         if plan:
             # Lanza el programa sin bloquear el loop de polling
             asyncio.create_task(sched.run_program(plan))
@@ -293,11 +280,10 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
             last_reported_min = None
 
         # ---- Log de hora y countdown al próximo evento (1 vez por minuto) ----
-        tnow = now_local(tz)
-        wait_s = next_event_in(tz, schedule)
+        tnow = now_local()
+        wait_s = next_event_in(schedule)
         if wait_s is None:
             if last_reported_min != "none":
-                log("Hora actual: {:02d}:{:02d}:{:02d}".format(tnow[3], tnow[4], tnow[5]))
                 log("No hay ejecuciones futuras programadas")
                 last_reported_min = "none"
         else:
@@ -306,8 +292,7 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
                 hh = wait_s // 3600
                 mm = (wait_s % 3600) // 60
                 ss = wait_s % 60
-                log("Hora actual: {:02d}:{:02d}:{:02d}".format(tnow[3], tnow[4], tnow[5]))
-                log("Tiempo hasta la próxima ejecución: {}h {}m {}s".format(hh, mm, ss))
+                log("Tiempo hasta la proxima ejecución: {}h {}m {}s".format(hh, mm, ss))
                 last_reported_min = remaining_min
 
         await asyncio.sleep(poll_s)

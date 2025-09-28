@@ -1,7 +1,7 @@
 import uasyncio as asyncio
 import network
 import config
-from logger import log
+from server_utils import log
 from server import start_server
 from task import riego_scheduler_loop
 from time_utils import sync_time_from_ntp

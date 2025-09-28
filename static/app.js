@@ -5,6 +5,39 @@ const out = $("out");
 const runBtn = $("run");
 const cmdInput = $("cmd");
 
+// --- Logs ---
+let running = false;
+let intervalId = null;
+
+const toggleBtn = document.getElementById("toggle");
+const logbox = document.getElementById("logbox");
+
+toggleBtn.addEventListener("click", () => {
+  running = !running;
+  toggleBtn.textContent = running ? "OFF" : "ON";
+
+  if (running) {
+    fetchLogs();
+    intervalId = setInterval(fetchLogs, 1000); // cada 10s
+  } else {
+    clearInterval(intervalId);
+  }
+});
+
+async function fetchLogs() {
+  try {
+    const res = await fetch("/api/logs/tail?n=20");
+    const data = await res.json();
+    console.log(data);
+    logbox.textContent = data.lines.join("\n");
+    logbox.scrollTop = logbox.scrollHeight;
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+
+
 async function exec() {
   const raw = cmdInput.value.trim();
   if (!raw) {
@@ -33,6 +66,9 @@ async function exec() {
       url += `?filename=${encodeURIComponent(arg)}`;
     }
     if (cmd === "ls" && arg) {
+      url += `?filename=${encodeURIComponent(arg)}`;
+    }
+    if (cmd === "tail" && arg) {
       url += `?filename=${encodeURIComponent(arg)}`;
     }
     // ls no necesita argumentos
