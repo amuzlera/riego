@@ -2,17 +2,26 @@ import uasyncio as asyncio
 import network
 import ubinascii
 import config
-from server_utils import send_response, parse_headers, _err_payload
-from endpoints import ls, cat, upload, rm
+from server_utils import reset, send_response, parse_headers, _err_payload
+from endpoints import ls, cat, upload, rm, tail
 
 # ---------- WiFi ----------
-sta_if = network.WLAN(network.STA_IF)
-sta_if.active(True)
-sta_if.connect(config.WIFI_SSID, config.WIFI_PASS)
+def connect_wifi(ssid: str, password: str, ip: str, netmask: str, gateway: str, dns: str):
+    """
+    Conecta el ESP32 al WiFi con IP fija.
+    """
+    sta_if = network.WLAN(network.STA_IF)
+    sta_if.active(True)
+    sta_if.connect(ssid, password)
 
-while not sta_if.isconnected():
-    pass
-print("Conectado a WiFi:", sta_if.ifconfig())
+    # Esperar hasta conectarse
+    while not sta_if.isconnected():
+        asyncio.sleep(0.1)
+
+    # Fijar IP estática
+    sta_if.ifconfig((ip, netmask, gateway, dns))
+    print("Conectado a WiFi. IP:", sta_if.ifconfig()[0])
+    return sta_if
 
 
 # ---------- Auth ----------
@@ -64,6 +73,9 @@ async def handle_client(reader, writer):
         print(route, query)
         if route == "/ls":
             await ls.handle(writer, query)
+        
+        elif route == "/tail":
+            await tail.handle(writer, query)
 
         elif route == "/cat":
             await cat.handle(writer, query)
@@ -73,6 +85,10 @@ async def handle_client(reader, writer):
 
         elif route == "/rm":
             await rm.handle(writer, query)
+
+        elif route == "/reset":
+            send_response(writer, {"status": "Reseteando controlador.."})
+            await reset()
 
         else:
             send_response(writer, {"error": f"Ruta {route} no encontrada"}, "404 Not Found")
@@ -92,8 +108,15 @@ async def handle_client(reader, writer):
 # ---------- Servidor ----------
 async def start_server():
     print("Servidor escuchando en 0.0.0.0:80")
-    server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
-    await server.wait_closed()
+    connect_wifi(
+        ssid=config.WIFI_SSID,
+        password=config.WIFI_PASS,
+        ip="192.168.0.50",        # IP fija
+        netmask="255.255.255.0",
+        gateway="192.168.0.1",
+        dns="8.8.8.8"
+    )
+    return await asyncio.start_server(handle_client, "0.0.0.0", 80)
 
 
 # ---------- Loop principal ----------

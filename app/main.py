@@ -4,14 +4,17 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
+from .logs_api import router as logs_router
+
 
 # === Config del ESP (igual que antes) ===
-ESP_HOST = os.getenv("ESP_HOST", "http://192.168.0.15")
+ESP_HOST = os.getenv("ESP_HOST", "http://192.168.0.50")
 ESP_USER = os.getenv("ESP_USER", "admin")
 ESP_PASS = os.getenv("ESP_PASS", "1234")
 ESP_TIMEOUT = float(os.getenv("ESP_TIMEOUT", "5"))
 
 app = FastAPI(title="Riego UI + ESP Proxy")
+app.include_router(logs_router, prefix="/api")  # <- esto pone /api/logs/tail
 
 # ---------- helpers ----------
 
