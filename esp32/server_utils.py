@@ -56,12 +56,15 @@ def log(msg):
     # Append directo
     ts = now_local()
     line = "{:02d}:{:02d}:{:02d} - {}\n".format(ts[3], ts[4], ts[5], msg)
+    print(line)
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
-
-    # Si se pone muy grande, recién ahí recorto
+        
+    # Truncar si es muy grande
     if uos.stat(LOG_FILE)[6] > 2000:  # tamaño en bytes (~2 KB)
-        with open(LOG_FILE) as f:
+        with open(LOG_FILE, "r") as f:
             lines = f.readlines()
         with open(LOG_FILE, "w") as f:
-            f.writelines(lines[-MAX_LINES:])
+            # MicroPython puede no tener writelines(); escribimos en un bucle
+            for l in lines[-MAX_LINES:]:
+                f.write(l)

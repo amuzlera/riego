@@ -1,1 +1,52 @@
+# local config (contains secrets)
 config.py
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions / cython build outputs
+*.so
+*.pyd
+*.pyc
+*.c
+build/
+dist/
+
+# MicroPython / ESP artifacts
+*.mpy
+*.uf2
+log.txt
+/.mpremote
+
+# Virtualenvs
+venv/
+env/
+.venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# pytest
+.pytest_cache/
+
+# pipenv / poetry
+Pipfile.lock
+poetry.lock
+
+# local env files
+.env
+local.env
+
+# node/npm
+node_modules/
+npm-debug.log
+yarn-error.log

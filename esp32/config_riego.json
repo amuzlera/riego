@@ -1,18 +1,21 @@
-{
+{   "loaded": false,
     "tz_offset_seconds": 10800,
     "zones": {
-        "zona1": 4,
+        "zona1": 19,
         "zona2": 5,
-        "zona3": 18
+        "zona3": 18,
+        "zona4": 25,
+        "zona5": 26,
+        "zona6": 27
     },
     "programed_times": {
-        "lunes":    [{"start": "20:00", "duration_min": 10}],
-        "jueves":   [{"start": "20:00", "duration_min": 10}, {"start": "21:15", "duration_min": 5}],
-        "domingo":  [{"start": "22:53", "duration_min": 2}]
+        "sabado": [{"start": "18:37", "duration_min": 1}],
+        "lunes": [{"start": "18:30", "duration_min": 1}]
+
     },
     "policy": {
         "mode": "multipliers",
-        "include": ["zona1", "zona2", "zona3"],
-        "multipliers": {"zona2": 2.0}
+        "include": ["zona1", "zona2", "zona3", "zona4", "zona5", "zona6"],
+        "multipliers": {"zona2": 1.0}
     }
 }
