@@ -147,6 +147,59 @@ async def esp_exec(
     except httpx.RequestError as e:
         return JSONResponse(status_code=502, content={"error": str(e)})
 
+
+
+@app.post("/api/esp/zone")
+async def esp_zone(request: Request, body: str = Body("", media_type="text/plain"),
+                   zone: str | None = Query(None), action: str | None = Query(None),
+                   duration: int | None = Query(None)):
+    """
+    Proxy para encender/apagar zonas del ESP.
+    Formatos aceptados:
+      - Body corto: "zone1 on 3600" (zona, action, duration opcional)
+      - Query params: zone=<zona>, action=on|off, duration=<s>
+
+    Reenvía a {ESP_HOST}/zone?zone=...&action=...&duration=...
+    """
+    # Priorizar query params si están presentes
+    z = zone
+    a = action
+    d = duration
+
+    # Si no vienen en query, intentar parsear el body corto
+    if not z and body:
+        # body puede venir con newline; tomamos la primera linea
+        first = body.splitlines()[0].strip()
+        if first:
+            parts = first.split()
+            if len(parts) >= 1:
+                z = parts[0]
+            if len(parts) >= 2:
+                a = parts[1]
+            if len(parts) >= 3:
+                try:
+                    d = int(parts[2])
+                except Exception:
+                    d = None
+
+    if not z:
+        return JSONResponse(status_code=400, content={"error": "zone requerido"})
+
+    params = {"zone": z}
+    if a:
+        params["action"] = a
+    if d is not None:
+        params["duration"] = str(d)
+
+    try:
+        # Usamos GET porque el firmware acepta GET para /zone (como otros endpoints)
+        r = await _esp_get("/zone", params)
+        return _as_response(r)
+    except httpx.TimeoutException:
+        return JSONResponse(status_code=504, content={"error": "timeout"})
+    except httpx.RequestError as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
 # ---------- Frontend ----------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

@@ -18,7 +18,7 @@ toggleBtn.addEventListener("click", () => {
 
   if (running) {
     fetchLogs();
-    intervalId = setInterval(fetchLogs, 1000); // cada 10s
+    intervalId = setInterval(fetchLogs, 30000); // cada 10s
   } else {
     clearInterval(intervalId);
   }
@@ -53,8 +53,42 @@ async function exec() {
     const parts = raw.split(/\s+/);
     const cmd = parts[0];
     var arg = parts[1]; // solo el primero por ahora
-
+    console.log(cmd, arg);
     arg = (typeof arg === "string" ? arg : "").replace(/\//g, "-_-");
+    // special handling for zone commands
+    if (cmd === "zone" || /^zona?\d+$/i.test(cmd)) {
+      // body format: "zone1 on 3600" or if first token is 'zone', join remaining
+      let bodyText = null;
+      if (cmd === "zone") {
+        bodyText = parts.slice(1).join(" ");
+      } else {
+        // e.g. "zone1 on 3600" -> keep as-is
+        bodyText = parts.join(" ");
+      }
+
+      if (!bodyText || bodyText.trim().length === 0) {
+        out.textContent = "Ingresá zona y acción, p.ej: 'zone1 on 3600'";
+        runBtn.disabled = false;
+        return;
+      }
+
+      console.log("→ POST /api/esp/zone", bodyText);
+      const res = await fetch(`/api/esp/zone`, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: bodyText
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        const data = await res.json();
+        out.textContent = data.content ? data.content : JSON.stringify(data, null, 2);
+      } else {
+        out.textContent = await res.text();
+      }
+      runBtn.disabled = false;
+      return;
+    }
 
     let url = `/api/esp?cmd=${encodeURIComponent(cmd)}`;
 
@@ -82,6 +116,17 @@ async function exec() {
       const data = await res.json();
       if (data.content) {
         out.textContent = data.content;
+        // si fue un cat que devolvió {file, content}, rellenar inputs de upload
+        try {
+          if (data.file && typeof data.content === 'string') {
+            const filenameInput = $("filename");
+            const filecontentInput = $("filecontent");
+            if (filenameInput) filenameInput.value = data.file;
+            if (filecontentInput) filecontentInput.value = data.content;
+          }
+        } catch (e) {
+          console.warn('No se pudo auto-llenar upload:', e);
+        }
       } else {
         out.textContent = JSON.stringify(data, null, 2);
       }

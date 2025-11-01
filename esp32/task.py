@@ -32,13 +32,16 @@ def _normalize_day_entries(entries):
     """
     norm = []
     if not isinstance(entries, list):
+        log("La entrada no es una lista, se descarta")
         return norm
+    log(f"Recorriendo entradas del día: {entries}")
     for obj in entries:
         try:
             start = obj.get("start")
             dur_m = int(obj.get("duration_min"))
             sm = parse_hhmm_to_minutes(start)
             if dur_m > 0:
+                log(f"  Entrada válida: start {start} ({sm} min), duration {dur_m} min")
                 norm.append((sm, dur_m * 60))
         except Exception as e:
             log(e)
@@ -63,6 +66,7 @@ def load_config(path):
             "policy": {"mode": "all_same_time"}
         }
 
+    log("Cargando config")
     zones = raw.get("zones", {})
     prog = raw.get("programed_times", {})
     policy = raw.get("policy", {"mode": "all_same_time"})
@@ -76,11 +80,15 @@ def load_config(path):
         day_list = _normalize_day_entries(entries)
         if day_list:
             schedule[wd] = sorted(day_list, key=lambda x: x[0])  # por hora
-    return {
+
+    loaded_config = {
         "zones": zones,
         "schedule": schedule,
         "policy": policy
     }
+
+    log(f"Config cargada: {loaded_config}")
+    return loaded_config
 
 # ------------------ Control de zonas ------------------
 
@@ -93,7 +101,7 @@ class ZonesController:
         self.zones = {}
         for name, pin_num in zones_map.items():
             try:
-                self.zones[name] = Pin(int(pin_num), Pin.OUT, value=0)
+                self.zones[name] = Pin(int(pin_num), Pin.OUT, value=1)
             except Exception as e:
                 log(f'Pin inválido para, {name} : {pin_num}, {e}')
 
@@ -102,15 +110,18 @@ class ZonesController:
 
     def on(self, name):
         if name in self.zones:
-            self.zones[name].value(1)
+            self.zones[name].value(0)
+        log(f"Zona {name} encendida")
 
     def off(self, name):
         if name in self.zones:
-            self.zones[name].value(0)
+            self.zones[name].value(1)
+        log(f"Zona {name} apagada")
 
     def off_all(self):
         for p in self.zones.values():
-            p.value(0)
+            p.value(1)
+        log("Todas las zonas apagadas")
 
 # ------------------ Políticas ------------------
 
@@ -209,6 +220,12 @@ def next_event_in(schedule):
     min_now = minutes_since_midnight(t)
 
     best_delta = None
+    MIN_PER_WEEK = 7 * 1440
+
+    # Consideramos cada evento y, si su delta llega a ser <= 0 (pasado o exactamente ahora),
+    # lo interpretamos como la próxima ocurrencia la semana siguiente (delta + 7 días).
+    # Esto garantiza un comportamiento cíclico semanal: un evento que ocurre hoy a la hora
+    # X, después de ejecutarse, volverá a programarse para el mismo día la próxima semana.
     for delta_day in range(0, 7):  # mirar la semana completa
         wd = (wd_now + delta_day) % 7
         if wd not in schedule:
@@ -217,8 +234,10 @@ def next_event_in(schedule):
             abs_min_now = wd_now * 1440 + min_now
             abs_min_evt = wd * 1440 + start_min + delta_day * 1440
             delta = abs_min_evt - abs_min_now
-            if delta < 0:
-                continue
+            # si el evento ya pasó (delta < 0) o es exactamente ahora (delta == 0),
+            # programarlo para la próxima semana
+            if delta <= 0:
+                delta += MIN_PER_WEEK
             sec = delta * 60
             if best_delta is None or sec < best_delta:
                 best_delta = sec
@@ -237,7 +256,7 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
     print("RUNNING riego_scheduler_loop")
     last_cfg_text = None
     cfg = load_config(config_path)
-    zc = ZonesController(cfg["zones"] or {"zona1": 4})  # fallback a LED pin 4
+    zc = ZonesController(cfg["zones"])
     sched = ProgramScheduler(zc)
 
     schedule = cfg["schedule"]
@@ -251,11 +270,11 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
         if reload_s and reload_acc <= 0:
             try:
                 with open(config_path, "r") as f:
-                    cfg_text = f.read()
+                    config_data = json.load(f)
             except Exception as e:
                 log(e)
                 cfg_text = None
-            if cfg_text and cfg_text != last_cfg_text:
+            if config_data.get("loadded") is False:
                 try:
                     cfg = json.loads(cfg_text)
                     zc = ZonesController(cfg.get("zones", zc.zones))
@@ -280,7 +299,6 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
             last_reported_min = None
 
         # ---- Log de hora y countdown al próximo evento (1 vez por minuto) ----
-        tnow = now_local()
         wait_s = next_event_in(schedule)
         if wait_s is None:
             if last_reported_min != "none":
@@ -289,10 +307,11 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
         else:
             remaining_min = wait_s // 60
             if remaining_min != last_reported_min:
-                hh = wait_s // 3600
+                dd = wait_s // 86400
+                hh = (wait_s % 86400) // 3600
                 mm = (wait_s % 3600) // 60
                 ss = wait_s % 60
-                log("Tiempo hasta la proxima ejecucion: {}h {}m {}s".format(hh, mm, ss))
+                log("Tiempo hasta la proxima ejecucion: {}d {}h {}m {}s".format(dd, hh, mm, ss))
                 last_reported_min = remaining_min
 
         await asyncio.sleep(poll_s)

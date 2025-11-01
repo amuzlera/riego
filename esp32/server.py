@@ -2,8 +2,8 @@ import uasyncio as asyncio
 import network
 import ubinascii
 import config
-from server_utils import reset, send_response, parse_headers, _err_payload
-from endpoints import ls, cat, upload, rm, tail
+from server_utils import log, reset, send_response, parse_headers, _err_payload
+from endpoints import ls, cat, upload, rm, tail, actions
 
 # ---------- WiFi ----------
 def connect_wifi(ssid: str, password: str, ip: str, netmask: str, gateway: str, dns: str):
@@ -70,7 +70,7 @@ async def handle_client(reader, writer):
             return
 
         # ---------- Dispatch ----------
-        print(route, query)
+        log(f"{route}, {query}")
         if route == "/ls":
             await ls.handle(writer, query)
         
@@ -85,6 +85,9 @@ async def handle_client(reader, writer):
 
         elif route == "/rm":
             await rm.handle(writer, query)
+
+        elif route == "/zone":
+            await actions.handle(writer, query)
 
         elif route == "/reset":
             send_response(writer, {"status": "Reseteando controlador.."})
@@ -107,7 +110,7 @@ async def handle_client(reader, writer):
 
 # ---------- Servidor ----------
 async def start_server():
-    print("Servidor escuchando en 0.0.0.0:80")
+    log("Servidor escuchando en 0.0.0.0:80")
     connect_wifi(
         ssid=config.WIFI_SSID,
         password=config.WIFI_PASS,
