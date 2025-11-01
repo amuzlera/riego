@@ -288,13 +288,16 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
                     config_data = json.load(f)
             except Exception as e:
                 log(e)
-                cfg_text = None
             if config_data.get("loaded") is False:
                 try:
-                    cfg = json.loads(cfg_text)
-                    zc = ZonesController(cfg.get("zones", zc.zones))
-                    schedule = load_config(config_path)["schedule"]
-                    policies = cfg.get("policies", policies)
+                    cfg = load_config(config_path)
+                    zc = ZonesController(cfg["zones"])
+                    sched = ProgramScheduler(zc)
+
+                    schedule = cfg["schedule"]
+                    policies = cfg["policies"]
+
+
                     # reinicia estado de ejecución
                     sched = ProgramScheduler(zc)
                     log("Config recargada.")
