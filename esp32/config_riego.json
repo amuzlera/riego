@@ -9,13 +9,23 @@
         "zona6": 27
     },
     "programed_times": {
-        "sabado": [{"start": "18:37", "duration_min": 1}],
-        "lunes": [{"start": "18:30", "duration_min": 1}]
+        "lunes":     [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
+        "martes":    [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
+        "miercoles": [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
+        "jueves":    [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
+        "viernes":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
+        "sabado":    [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
+        "domingo":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}]
 
     },
-    "policy": {
+    "policies": {
+    "riego1": {
         "mode": "multipliers",
-        "include": ["zona1", "zona2", "zona3", "zona4", "zona5", "zona6"],
+        "include": ["zona1"],
         "multipliers": {"zona2": 1.0}
+    },
+    "luces": {
+        "mode": "all_same_time",
+        "include": ["zona6"]
     }
-}
+}}

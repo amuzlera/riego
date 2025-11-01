@@ -40,9 +40,10 @@ def _normalize_day_entries(entries):
             start = obj.get("start")
             dur_m = int(obj.get("duration_min"))
             sm = parse_hhmm_to_minutes(start)
+            policy = obj.get("policy")
             if dur_m > 0:
                 log(f"  Entrada válida: start {start} ({sm} min), duration {dur_m} min")
-                norm.append((sm, dur_m * 60))
+                norm.append((sm, dur_m * 60, policy))
         except Exception as e:
             log(e)
     return norm
@@ -63,13 +64,13 @@ def load_config(path):
         return {
             "zones": {},
             "schedule": {},
-            "policy": {"mode": "all_same_time"}
+            "policies": {}
         }
 
     log("Cargando config")
     zones = raw.get("zones", {})
     prog = raw.get("programed_times", {})
-    policy = raw.get("policy", {"mode": "all_same_time"})
+    policies = raw.get("policies")
 
     schedule = {}
     for day_name, entries in prog.items():
@@ -84,7 +85,7 @@ def load_config(path):
     loaded_config = {
         "zones": zones,
         "schedule": schedule,
-        "policy": policy
+        "policies": policies
     }
 
     log(f"Config cargada: {loaded_config}")
@@ -130,7 +131,7 @@ def resolve_policy(policy, zones_available, base_duration_s):
     """
     Retorna lista de (zona_name, duration_s) en orden de riego.
     """
-    mode = (policy or {}).get("mode", "all_same_time")
+    mode = policy.get("mode", "all_same_time")
     include = policy.get("include", None)
     multipliers = policy.get("multipliers", {})
 
@@ -166,6 +167,7 @@ class ProgramScheduler:
         self.zc = zones_ctrl
         self._lock = asyncio.Lock()
         self._already_run_keys = set()  # "YYYYMMDD-wd-start_min"
+        self._last_key_day = None  # (y, m, d)
 
     def _make_key(self, t, wd, start_min):
         y, mo, d = t[0], t[1], t[2]
@@ -187,7 +189,20 @@ class ProgramScheduler:
             finally:
                 self.zc.off_all()
 
-    async def tick(self, schedule, policy):
+    async def refresh_if_day_changed(self, t=None):
+         """
+         Limpia _already_run_keys cuando cambia el día.
+         Puede llamarse periódicamente desde el loop principal.
+         """
+         if t is None:
+             t = now_local()
+         today = (t[0], t[1], t[2])
+         if self._last_key_day != today:
+             self._already_run_keys.clear()
+             self._last_key_day = today
+             log("Nuevo día detectado: limpiando _already_run_keys")
+
+    async def tick(self, schedule, policies):
         """
         Chequea si algún evento debe dispararse "ahora".
         Retorna plan si debe disparar, o None si no.
@@ -195,15 +210,16 @@ class ProgramScheduler:
         t = now_local()
         wd = t[6]
         minute_now = minutes_since_midnight(t)
+        await self.refresh_if_day_changed(t)
 
         day_list = schedule.get(wd, [])
-        for start_min, duration_s in day_list:
+        for start_min, duration_s, policy_name in day_list:
             # Disparo exacto cuando coincide el minuto (tolerancia de 0..59s)
             # clave por fecha + minuto de inicio
             key = self._make_key(t, wd, start_min)
             if start_min == minute_now and key not in self._already_run_keys:
                 self._already_run_keys.add(key)
-                plan = resolve_policy(policy, self.zc.names(), duration_s)
+                plan = resolve_policy(policies.get(policy_name), self.zc.names(), duration_s)
                 return plan
         return None
 
@@ -254,13 +270,12 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
     - Loguea hora actual y tiempo hasta el próximo evento (1 vez por minuto).
     """
     print("RUNNING riego_scheduler_loop")
-    last_cfg_text = None
     cfg = load_config(config_path)
     zc = ZonesController(cfg["zones"])
     sched = ProgramScheduler(zc)
 
     schedule = cfg["schedule"]
-    policy = cfg["policy"]
+    policies = cfg["policies"]
 
     reload_acc = 0
     last_reported_min = None  # throttle: log una vez por minuto restante
@@ -274,16 +289,15 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
             except Exception as e:
                 log(e)
                 cfg_text = None
-            if config_data.get("loadded") is False:
+            if config_data.get("loaded") is False:
                 try:
                     cfg = json.loads(cfg_text)
                     zc = ZonesController(cfg.get("zones", zc.zones))
                     schedule = load_config(config_path)["schedule"]
-                    policy = cfg.get("policy", policy)
+                    policies = cfg.get("policies", policies)
                     # reinicia estado de ejecución
                     sched = ProgramScheduler(zc)
                     log("Config recargada.")
-                    last_cfg_text = cfg_text
                     # forzar log inmediato del próximo evento
                     last_reported_min = None
                 except Exception as e:
@@ -291,7 +305,7 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
             reload_acc = reload_s
 
         # Tick de programación
-        plan = await sched.tick(schedule, policy)
+        plan = await sched.tick(schedule, policies)
         if plan:
             # Lanza el programa sin bloquear el loop de polling
             asyncio.create_task(sched.run_program(plan))
