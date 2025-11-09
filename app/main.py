@@ -84,16 +84,6 @@ async def esp_cat(file: str = Query(..., description="Nombre de archivo")):
         return JSONResponse(status_code=502, content={"error": str(e)})
 
 
-
-
-
-
-
-
-
-
-
-
 @app.post("/upload")
 async def upload_file(data: UploadFile):
     filename = data.filename
@@ -102,8 +92,6 @@ async def upload_file(data: UploadFile):
     with open(filename, "w") as f:
         f.write(content)
     return {"status": "Archivo guardado", "file": filename}
-
-
 
 
 @app.post("/api/esp/rm")
@@ -121,8 +109,6 @@ async def esp_rm(file: str = Query(..., description="Nombre de archivo a elimina
         return JSONResponse(status_code=504, content={"error": "timeout"})
     except httpx.RequestError as e:
         return JSONResponse(status_code=502, content={"error": str(e)})
-
-# ---------- (opcional) Proxy genérico /api/esp?cmd=xxx ----------
 
 
 @app.api_route("/api/esp", methods=["GET", "POST"])
@@ -207,4 +193,12 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 def root():
     return FileResponse("static/index.html")
+
+
+
+@app.get("/control_panel")
+def control_panel():
+    """Sirve la página Control Panel (static/control_panel.html)"""
+    return FileResponse("static/control_panel.html")
 # python -m uvicorn app.main:app --reload
+# python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
