@@ -91,6 +91,7 @@ async def handle_client(reader, writer):
 
         elif route == "/reset":
             send_response(writer, {"status": "Reseteando controlador.."})
+            asyncio.sleep(10)
             await reset()
 
         else:

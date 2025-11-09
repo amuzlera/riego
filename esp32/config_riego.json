@@ -9,20 +9,19 @@
         "zona6": 27
     },
     "programed_times": {
-        "lunes":     [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
-        "martes":    [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
-        "miercoles": [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
-        "jueves":    [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
-        "viernes":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
-        "sabado":    [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}],
-        "domingo":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:15", "duration_min": 14400, "policy": "luces"}]
+        "lunes":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:30", "duration_min": 150, "policy": "luces"}],
+        "martes":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:30", "duration_min": 200, "policy": "luces"}],
+        "miercoles":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:30", "duration_min": 150, "policy": "luces"}],
+        "jueves":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:30", "duration_min": 150, "policy": "luces"}],
+        "viernes":   [{"start": "23:30", "duration_min": 10 , "policy": "riego1"}, {"start": "19:30", "duration_min": 150, "policy": "luces"}],
+        "sabado":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:30", "duration_min": 150, "policy": "luces"}],
+        "domingo":   [{"start": "23:30", "duration_min": 10, "policy": "riego1"}, {"start": "19:30", "duration_min": 150, "policy": "luces"}]
 
     },
     "policies": {
     "riego1": {
-        "mode": "multipliers",
-        "include": ["zona1"],
-        "multipliers": {"zona2": 1.0}
+        "mode": "all_same_time",
+        "include": ["zona1"]
     },
     "luces": {
         "mode": "all_same_time",

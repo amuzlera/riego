@@ -4,6 +4,18 @@ from machine import Pin
 from server_utils import log
 from time_utils import now_local
 
+import gc  
+
+def log_memory():
+    gc.collect()  # Forzar recolección de basura
+    free = gc.mem_free()
+    alloc = gc.mem_alloc()
+    total = free + alloc
+    percent = alloc * 100 / total
+    log(f"Memoria - Uso: {alloc} bytes, Libre: {free} bytes ({percent:.1f}%)")
+
+
+
 # ------------------ Helpers de día/tiempo ------------------
 
 SPANISH_WD = {
@@ -34,7 +46,6 @@ def _normalize_day_entries(entries):
     if not isinstance(entries, list):
         log("La entrada no es una lista, se descarta")
         return norm
-    log(f"Recorriendo entradas del día: {entries}")
     for obj in entries:
         try:
             start = obj.get("start")
@@ -88,7 +99,7 @@ def load_config(path):
         "policies": policies
     }
 
-    log(f"Config cargada: {loaded_config}")
+    log("Config cargada")
     return loaded_config
 
 # ------------------ Control de zonas ------------------
@@ -246,7 +257,8 @@ def next_event_in(schedule):
         wd = (wd_now + delta_day) % 7
         if wd not in schedule:
             continue
-        for start_min, _ in schedule[wd]:
+        for schedule_data in schedule[wd]:
+            start_min = schedule_data[0]
             abs_min_now = wd_now * 1440 + min_now
             abs_min_evt = wd * 1440 + start_min + delta_day * 1440
             delta = abs_min_evt - abs_min_now
@@ -262,7 +274,7 @@ def next_event_in(schedule):
 # ------------------ Loop principal ------------------
 
 
-async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
+async def riego_scheduler_loop(config_path, poll_s=1):
     """
     - Relee config cada 'reload_s' segundos.
     - Chequea disparos cada 'poll_s' segundos.
@@ -281,32 +293,6 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
     last_reported_min = None  # throttle: log una vez por minuto restante
 
     while True:
-        # Reload periódico
-        if reload_s and reload_acc <= 0:
-            try:
-                with open(config_path, "r") as f:
-                    config_data = json.load(f)
-            except Exception as e:
-                log(e)
-            if config_data.get("loaded") is False:
-                try:
-                    cfg = load_config(config_path)
-                    zc = ZonesController(cfg["zones"])
-                    sched = ProgramScheduler(zc)
-
-                    schedule = cfg["schedule"]
-                    policies = cfg["policies"]
-
-
-                    # reinicia estado de ejecución
-                    sched = ProgramScheduler(zc)
-                    log("Config recargada.")
-                    # forzar log inmediato del próximo evento
-                    last_reported_min = None
-                except Exception as e:
-                    log(f"Error parseando config: {e}")
-            reload_acc = reload_s
-
         # Tick de programación
         plan = await sched.tick(schedule, policies)
         if plan:
@@ -329,6 +315,7 @@ async def riego_scheduler_loop(config_path, poll_s=1, reload_s=3):
                 mm = (wait_s % 3600) // 60
                 ss = wait_s % 60
                 log("Tiempo hasta la proxima ejecucion: {}d {}h {}m {}s".format(dd, hh, mm, ss))
+                log_memory()
                 last_reported_min = remaining_min
 
         await asyncio.sleep(poll_s)

@@ -1,3 +1,4 @@
+import sys
 import uasyncio as asyncio
 import network, config, machine, time
 from machine import WDT
@@ -7,7 +8,24 @@ from task import riego_scheduler_loop
 from time_utils import sync_time_from_ntp
 from boot import CONFIG_PATH
 
-wdt = WDT(timeout=15000)  # 15 segundos
+
+async def safe_task(name, coro):
+    try:
+        await coro
+    except Exception as e:
+        import io
+        # Capturar el traceback en un buffer
+        output = io.StringIO()
+        sys.print_exception(e, output)
+        tb_str = output.getvalue()
+        output.close()
+        
+        log(f"Tarea '{name}' falló: {e}")
+        log(f"Traceback:\n{tb_str}")
+
+
+
+wdt = WDT(timeout=20000)
 last_ok = time.time()
 
 def heartbeat():
@@ -48,9 +66,9 @@ async def main():
     log(f"Hora actual: {t}")
     heartbeat()
 
-    asyncio.create_task(start_server())
-    asyncio.create_task(riego_scheduler_loop(CONFIG_PATH, poll_s=1, reload_s=3))
-    asyncio.create_task(healthcheck())
+    asyncio.create_task(safe_task("server", start_server()))
+    asyncio.create_task(safe_task("riego_scheduler", riego_scheduler_loop(CONFIG_PATH, poll_s=5)))
+    asyncio.create_task(safe_task("healthcheck", healthcheck()))
 
     while True:
         heartbeat()
@@ -58,7 +76,6 @@ async def main():
 
 print("RUNNING MAIN")
 asyncio.run(main())
-
 
 '''
 mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/ls.py :endpoints/

@@ -50,7 +50,7 @@ def _err_payload(e):
 import uos
 
 LOG_FILE = "log.txt"
-MAX_LINES = 50
+MAX_LINES = 100
 
 def log(msg):
     # Append directo
