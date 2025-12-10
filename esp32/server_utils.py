@@ -1,3 +1,5 @@
+import urequests
+import uos
 import time
 import ujson as json
 
@@ -9,6 +11,7 @@ def reset():
     time.sleep(1)
     import machine
     machine.reset()
+
 
 def send_response(writer, data, status="200 OK", content_type="application/json"):
     if isinstance(data, dict):
@@ -47,19 +50,22 @@ def _err_payload(e):
 
 
 # --- logger simple ---
-import uos
 
 LOG_FILE = "log.txt"
 MAX_LINES = 100
 
-def log(msg):
+
+def log(msg, send=True):
     # Append directo
     ts = now_local()
     line = "{:02d}:{:02d}:{:02d} - {}".format(ts[3], ts[4], ts[5], msg)
     print(line)
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
-        
+
+    if send and False:
+        send_logs([msg])
+
     # Truncar si es muy grande
     if uos.stat(LOG_FILE)[6] > 2000:  # tamaño en bytes (~2 KB)
         with open(LOG_FILE, "r") as f:
@@ -68,3 +74,45 @@ def log(msg):
             # MicroPython puede no tener writelines(); escribimos en un bucle
             for l in lines[-MAX_LINES:]:
                 f.write(l)
+
+
+def send_logs(msg):
+    url = "http://192.168.0.105:8000/api/logs"
+
+    payload = {"log": msg}
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        log(f'data: {json.dumps(payload)}', send=False)
+        r = urequests.post(url, data=json.dumps(payload), headers=headers)
+        log(f"response: {r.text}", send=False)
+        r.close()
+    except Exception as e:
+        log("Error enviando logs: " + str(e), send=False)
+
+
+
+def get_weather_multiplier():
+    url = "http://192.168.0.105:8000/api/weather-multiplier"
+
+    try:
+        r = urequests.get(url)
+        data = r.json()
+        r.close()
+
+        # Por si el servidor devolvió algo inesperado
+        if "multiplier" not in data:
+            return {
+                "multiplier": 1.0,
+                "details": "invalid response",
+                "response": data
+            }
+
+        return data
+
+    except Exception as e:
+        # Cualquier error: WiFi caída, timeout, JSON inválido, server down, etc.
+        return {
+            "multiplier": 1.0,
+            "details": "fail to fetch"
+        }

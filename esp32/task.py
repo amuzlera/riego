@@ -1,10 +1,11 @@
 import uasyncio as asyncio
 import ujson as json
 from machine import Pin
-from server_utils import log
+from server_utils import log, get_weather_multiplier, send_logs
 from time_utils import now_local
 
-import gc  
+import gc
+
 
 def log_memory():
     gc.collect()  # Forzar recolección de basura
@@ -15,9 +16,7 @@ def log_memory():
     log(f"Memoria - Uso: {alloc} bytes, Libre: {free} bytes ({percent:.1f}%)")
 
 
-
 # ------------------ Helpers de día/tiempo ------------------
-
 SPANISH_WD = {
     "lunes": 0, "martes": 1, "miercoles": 2, "miércoles": 2,
     "jueves": 3, "viernes": 4, "sabado": 5, "sábado": 5,
@@ -109,11 +108,13 @@ class ZonesController:
     def __init__(self, zones_map):
         """
         zones_map: {"zona1": pin, "zona2": pin, ...}
+        Solo crea objetos Pin, sin cambiar el estado actual (que fue inicializado en boot.py)
         """
         self.zones = {}
         for name, pin_num in zones_map.items():
             try:
-                self.zones[name] = Pin(int(pin_num), Pin.OUT, value=1)
+                # Crear Pin sin especificar value para no cambiar el estado actual
+                self.zones[name] = Pin(int(pin_num), Pin.OUT)
             except Exception as e:
                 log(f'Pin inválido para, {name} : {pin_num}, {e}')
 
@@ -158,8 +159,11 @@ def resolve_policy(policy, zones_available, base_duration_s):
         for z in selected:
             plan.append((z, base_duration_s))
     elif mode == "multipliers":
+        weather_mult = get_weather_multiplier()
+        log(weather_mult)
+        weather_multiplier = weather_mult.get("multiplier", 1.0)
         for z in selected:
-            k = multipliers.get(z, 1.0)
+            k = multipliers.get(z, 1.0) * weather_multiplier
             dur = int(base_duration_s * float(k))
             if dur > 0:
                 plan.append((z, dur))
@@ -201,17 +205,17 @@ class ProgramScheduler:
                 self.zc.off_all()
 
     async def refresh_if_day_changed(self, t=None):
-         """
-         Limpia _already_run_keys cuando cambia el día.
-         Puede llamarse periódicamente desde el loop principal.
-         """
-         if t is None:
-             t = now_local()
-         today = (t[0], t[1], t[2])
-         if self._last_key_day != today:
-             self._already_run_keys.clear()
-             self._last_key_day = today
-             log("Nuevo día detectado: limpiando _already_run_keys")
+        """
+        Limpia _already_run_keys cuando cambia el día.
+        Puede llamarse periódicamente desde el loop principal.
+        """
+        if t is None:
+            t = now_local()
+        today = (t[0], t[1], t[2])
+        if self._last_key_day != today:
+            self._already_run_keys.clear()
+            self._last_key_day = today
+            log("Nuevo día detectado: limpiando _already_run_keys")
 
     async def tick(self, schedule, policies):
         """
@@ -230,7 +234,11 @@ class ProgramScheduler:
             key = self._make_key(t, wd, start_min)
             if start_min == minute_now and key not in self._already_run_keys:
                 self._already_run_keys.add(key)
-                plan = resolve_policy(policies.get(policy_name), self.zc.names(), duration_s)
+                plan = resolve_policy(policies.get(
+                    policy_name), self.zc.names(), duration_s)
+                log(f'{policies.get(policy_name)}, {self.zc.names()}, {duration_s}')
+                log(f"start_min {start_min} == minute_now  {minute_now} and key {key} not in self._already_run_keys {self._already_run_keys}")
+                log(plan)
                 return plan
         return None
 
@@ -289,7 +297,6 @@ async def riego_scheduler_loop(config_path, poll_s=1):
     schedule = cfg["schedule"]
     policies = cfg["policies"]
 
-    reload_acc = 0
     last_reported_min = None  # throttle: log una vez por minuto restante
 
     while True:
@@ -314,10 +321,10 @@ async def riego_scheduler_loop(config_path, poll_s=1):
                 hh = (wait_s % 86400) // 3600
                 mm = (wait_s % 3600) // 60
                 ss = wait_s % 60
-                log("Tiempo hasta la proxima ejecucion: {}d {}h {}m {}s".format(dd, hh, mm, ss))
-                log_memory()
+                log("Tiempo hasta la proxima ejecucion: {}d {}h {}m {}s".format(
+                    dd, hh, mm, ss))
+                # log_memory()
                 last_reported_min = remaining_min
+                send_logs()
 
         await asyncio.sleep(poll_s)
-        if reload_acc:
-            reload_acc -= poll_s
