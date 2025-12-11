@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
 from .logs_api import router as logs_router
+from .wheater import weather_router
 
 
 # === Config del ESP (igual que antes) ===
@@ -15,6 +16,7 @@ ESP_TIMEOUT = float(os.getenv("ESP_TIMEOUT", "5"))
 
 app = FastAPI(title="Riego UI + ESP Proxy")
 app.include_router(logs_router, prefix="/api")  # <- esto pone /api/logs/tail
+app.include_router(weather_router, prefix="/api")
 
 # ---------- helpers ----------
 
@@ -180,6 +182,26 @@ async def esp_zone(request: Request, body: str = Body("", media_type="text/plain
     try:
         # Usamos GET porque el firmware acepta GET para /zone (como otros endpoints)
         r = await _esp_get("/zone", params)
+        return _as_response(r)
+    except httpx.TimeoutException:
+        return JSONResponse(status_code=504, content={"error": "timeout"})
+    except httpx.RequestError as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
+
+@app.get("/api/esp/execute")
+async def esp_execute(code: str = Query(..., description="Código Python a ejecutar en ESP32")):
+    """
+    Ejecuta código Python en el ESP32.
+    
+    Ejemplos:
+      - /api/esp/execute?code=pin=Pin(2,Pin.IN)%0Aprint(pin.value())
+      - /api/esp/execute?code=print(machine.freq())
+    
+    Retorna: {"result": "salida", "error": null}
+    """
+    try:
+        r = await _esp_get("/execute", {"code": code})
         return _as_response(r)
     except httpx.TimeoutException:
         return JSONResponse(status_code=504, content={"error": "timeout"})

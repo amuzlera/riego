@@ -3,3 +3,4 @@ requests
 uvicorn
 httpx
 python-multipart
+openmeteo_sdk

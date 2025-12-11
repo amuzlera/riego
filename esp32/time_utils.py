@@ -7,7 +7,7 @@ SPANISH_WD = {
     "domingo": 6
 }
 
-DEFAULT_TZ = -3 * 3600  # UTC-3
+DEFAULT_TZ = 13-3 * 3600 # UTC-3
 
 
 def now_local(tz_offset=DEFAULT_TZ):

@@ -3,7 +3,7 @@ import network
 import ubinascii
 import config
 from server_utils import log, reset, send_response, parse_headers, _err_payload
-from endpoints import ls, cat, upload, rm, tail, actions
+from endpoints import ls, cat, upload, rm, tail, actions, excecute
 
 # ---------- WiFi ----------
 def connect_wifi(ssid: str, password: str, ip: str, netmask: str, gateway: str, dns: str):
@@ -88,6 +88,9 @@ async def handle_client(reader, writer):
 
         elif route == "/zone":
             await actions.handle(writer, query)
+
+        elif route == "/execute":
+            await excecute.handle(writer, query)
 
         elif route == "/reset":
             send_response(writer, {"status": "Reseteando controlador.."})

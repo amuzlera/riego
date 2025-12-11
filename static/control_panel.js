@@ -71,4 +71,28 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('back').addEventListener('click', () => {
     window.location.href = '/';
   });
+
+  // Execute code handler
+  document.getElementById('execute-btn').addEventListener('click', async () => {
+    const code = document.getElementById('code-input').value.trim();
+    if (!code) {
+      setOut('Error: Ingresa código para ejecutar');
+      return;
+    }
+
+    const encoded = encodeURIComponent(code);
+    const url = `/api/esp/execute?code=${encoded}`;
+    setOut(`Ejecutando código en ESP32...`);
+    
+    try {
+      const res = await fetch(url, { method: 'GET' });
+      const text = await res.text();
+      let parsed;
+      try { parsed = JSON.parse(text); }
+      catch (_) { parsed = text; }
+      setOut(`Respuesta (${res.status}): ` + (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)));
+    } catch (err) {
+      setOut('Error: ' + err.message);
+    }
+  });
 });

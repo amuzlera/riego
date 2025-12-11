@@ -9,7 +9,7 @@ def safe_high(pins):
         Pin(p, Pin.OUT, value=1)
 
 
-DEFAULT_SAFE_PINS = [16, 17, 18, 27, 32, 33]
+DEFAULT_SAFE_PINS = [19,5,18,25,26,27]
 
 try:
     from server_utils import log
