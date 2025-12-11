@@ -1,6 +1,6 @@
 # logs_api.py
 from pydantic import BaseModel
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime
@@ -15,16 +15,37 @@ class LogPayload(BaseModel):
 
 
 @router.post("/logs")
-def receive_logs(payload: LogPayload):
+async def receive_logs(request: Request):
+    try:
+        payload = await request.json()
+    except Exception as e:
+        # Si no es JSON válido, intentar como texto
+        body = await request.body()
+        print(f"ERROR parsing JSON: {e}")
+        print(f"RAW BODY: {body}")
+        return {"status": "error", "error": str(e)}, 400
+    
+    import json
+    print("RAW PAYLOAD:", json.dumps(payload, default=str, ensure_ascii=False))
     print("payload:", payload)
     
     # Aceptar ambos formatos: "logs" y "log"
-    lines = payload.logs or []
-    if payload.log:
-        if isinstance(payload.log, str):
-            lines = [payload.log]
-        elif isinstance(payload.log, list):
-            lines = payload.log
+    lines = payload.get("logs") or []
+    if payload.get("log"):
+        log_data = payload.get("log")
+        if isinstance(log_data, str):
+            lines = [log_data]
+        elif isinstance(log_data, list):
+            lines = log_data
+    
+    # Aplanar la lista en caso de que haya listas anidadas
+    flat_lines = []
+    for item in lines:
+        if isinstance(item, list):
+            flat_lines.extend(item)
+        else:
+            flat_lines.append(str(item))
+    lines = flat_lines
     
     if not lines:
         return {"status": "ok", "received_lines": 0}
@@ -43,8 +64,9 @@ def receive_logs(payload: LogPayload):
     # Escribir solo líneas nuevas
     with open(log_file, "a") as f:
         for line in lines:
-            if "/tail, filename=log.txt" not in line and line not in existing_lines:
-                f.write(line + "\n")
+            line_str = str(line)
+            if "/tail, filename=log.txt" not in line_str and line_str not in existing_lines:
+                f.write(line_str + "\n")
 
     return {"status": "ok", "received_lines": len(lines)}
 
@@ -78,6 +100,8 @@ async def tail_log(n: int = Query(20, ge=1, le=100)):
         lines = r.text.splitlines()
 
         # Append lines to date-based log file
+
+        '''
         today = datetime.now().strftime("%Y/%m/%d")
         log_file = Path(f"{today}.log")
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -93,6 +117,9 @@ async def tail_log(n: int = Query(20, ge=1, le=100)):
             for line in lines:
                 if "/tail, filename=log.txt" not in line and line not in existing_lines:
                     f.write(line + "\n")
+
+
+        '''
 
         return {"lines": lines}
 

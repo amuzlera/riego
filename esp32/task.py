@@ -1,7 +1,7 @@
 import uasyncio as asyncio
 import ujson as json
 from machine import Pin
-from server_utils import log, get_weather_multiplier, send_logs
+from server_utils import log, get_weather_multiplier
 from time_utils import now_local
 
 import gc
@@ -325,6 +325,5 @@ async def riego_scheduler_loop(config_path, poll_s=1):
                     dd, hh, mm, ss))
                 # log_memory()
                 last_reported_min = remaining_min
-                send_logs()
 
         await asyncio.sleep(poll_s)
