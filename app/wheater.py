@@ -133,13 +133,28 @@ weather_router = APIRouter()
 
 
 @weather_router.get("/weather-multiplier")
-def weather_multiplier():
+def weather_multiplier(mode=None):
     data = fetch_weather()
-    if is_night_mode():
+    mode = mode or "auto"
+    if mode == "auto":
+        night_r = compute_night_multiplier(data)
+        day_r = compute_day_multiplier(data)
+        if night_r["multiplier"] < day_r["multiplier"]:
+            response = night_r
+            response["mode"] = "night (auto)"
+        else:
+            response = day_r
+            response["mode"] = "day (auto)"
+
+    elif mode == "night":
         response = compute_night_multiplier(data)
         response["mode"] = "night (historic)"
-    else:
+    elif mode == "day":
         response = compute_day_multiplier(data)
         response["mode"] = "day (forecast)"
+    else:
+        return {
+            "error": "invalid mode, use 'day', 'night' or 'auto'"
+        }, 400
 
     return response
