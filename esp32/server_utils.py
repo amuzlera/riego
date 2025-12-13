@@ -4,7 +4,7 @@ import time
 import ujson as json
 
 from time_utils import now_local
-
+from config import BASE_API_URL
 
 def reset():
     log("Reiniciando...")
@@ -89,13 +89,13 @@ def log(msg, send=True):
 
 
 def send_logs(msg):
-    url = "http://192.168.0.105:8000/api/logs"
+    url = f"{BASE_API_URL}/logs"
 
     headers = {"Content-Type": "application/json; charset=utf-8"}
 
     try:
-        # Serializar con ensure_ascii=False para caracteres UTF-8
-        payload_json = json.dumps({"log": msg}, ensure_ascii=False)
+        # Serializar sin ensure_ascii (MicroPython ujson no lo soporta)
+        payload_json = json.dumps({"log": msg})
         r = urequests.post(url, data=payload_json, headers=headers)
         r.close()
     except Exception as e:
@@ -108,8 +108,7 @@ def send_logs(msg):
 
 
 def get_weather_multiplier():
-    url = "http://192.168.0.105:8000/api/weather-multiplier"
-
+    url = f"{BASE_API_URL}/weather-multiplier"
     try:
         r = urequests.get(url)
         data = r.json()

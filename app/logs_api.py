@@ -78,54 +78,32 @@ ESP32_PASS = "1234"
 
 
 @router.get("/logs/tail")
-async def tail_log(n: int = Query(20, ge=1, le=100)):
+async def tail_log(n: int = Query(20, ge=1, le=500)):
     """
-    Devuelve el resultado del tail de log.txt directamente desde el ESP32.
-    Solo se llama al endpoint del ESP32.
+    Devuelve las últimas n líneas de logs guardados localmente en el servidor.
+    Los logs vienen del ESP32 que los envía regularmente vía POST /logs.
     """
-
     try:
-        # Construimos la URL del ESP32
-        esp_url = f"{ESP32_IP}/tail?filename=log.txt"
-
-        print(esp_url)
-        # Llamada HTTP al ESP32
-        r = requests.get(
-            f"{ESP32_IP}/tail?filename=log.txt",
-            timeout=5,
-            auth=HTTPBasicAuth(ESP32_USER, ESP32_PASS)
-        )
-        r.raise_for_status()
-
-        lines = r.text.splitlines()
-
-        # Append lines to date-based log file
-
-        '''
+        # Usar el log de hoy
         today = datetime.now().strftime("%Y/%m/%d")
         log_file = Path(f"{today}.log")
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Leer líneas existentes
-        existing_lines = set()
-        if log_file.exists():
-            with open(log_file, "r") as f:
-                existing_lines = set(f.read().splitlines())
-
-        # Escribir solo líneas nuevas
-        with open(log_file, "a") as f:
-            for line in lines:
-                if "/tail, filename=log.txt" not in line and line not in existing_lines:
-                    f.write(line + "\n")
-
-
-        '''
-
-        return {"lines": lines}
-
-    except requests.exceptions.RequestException as e:
-        # Error de conexión o timeout
-        return {"lines": [], "error": f"No se pudo conectar al ESP32: {e}"}
-    except ValueError:
-        # JSON malformado
-        return {"lines": [], "error": "Respuesta inválida del ESP32"}
+        
+        if not log_file.exists():
+            return {"lines": [], "file": str(log_file), "count": 0}
+        
+        with open(log_file, "r", encoding="utf-8") as f:
+            all_lines = f.readlines()
+        
+        # Devolver las últimas n líneas
+        last_lines = all_lines[-n:] if len(all_lines) > n else all_lines
+        # Remover saltos de línea
+        last_lines = [line.rstrip("\n") for line in last_lines]
+        
+        return {
+            "lines": last_lines,
+            "file": str(log_file),
+            "count": len(last_lines),
+            "total": len(all_lines)
+        }
+    except Exception as e:
+        return {"error": str(e), "lines": []}, 400
