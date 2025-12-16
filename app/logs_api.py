@@ -30,13 +30,16 @@ async def receive_logs(request: Request):
     print("payload:", payload)
     
     # Aceptar ambos formatos: "logs" y "log"
-    lines = payload.get("logs") or []
+    lines = []
     if payload.get("log"):
         log_data = payload.get("log")
         if isinstance(log_data, str):
-            lines = [log_data]
+            # Si es un string compacto con múltiples líneas, dividirlo
+            lines = [line for line in log_data.split("\n") if line.strip()]
         elif isinstance(log_data, list):
             lines = log_data
+    else:
+        lines = payload.get("logs") or []
     
     # Aplanar la lista en caso de que haya listas anidadas
     flat_lines = []

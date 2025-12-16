@@ -94,8 +94,17 @@ def send_logs(msg):
     headers = {"Content-Type": "application/json; charset=utf-8"}
 
     try:
-        # Serializar sin ensure_ascii (MicroPython ujson no lo soporta)
-        payload_json = json.dumps({"log": msg})
+        # Leer las últimas 10 líneas del archivo de logs
+        try:
+            with open(LOG_FILE, "r") as f:
+                lines = f.readlines()
+            last_lines = lines[-10:] if lines else []
+            # Convertir a string único con saltos de línea
+            logs_content = "".join(last_lines).strip()
+        except OSError:
+            logs_content = "No log file found"
+        
+        payload_json = json.dumps({"log": logs_content})
         r = urequests.post(url, data=payload_json, headers=headers)
         r.close()
     except Exception as e:
