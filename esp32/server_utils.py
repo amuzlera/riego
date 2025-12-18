@@ -4,7 +4,7 @@ import time
 import ujson as json
 
 from time_utils import now_local
-from config import BASE_API_URL
+
 
 def reset():
     log("Reiniciando...")
@@ -89,22 +89,13 @@ def log(msg, send=True):
 
 
 def send_logs(msg):
-    url = f"{BASE_API_URL}/logs"
+    url = "http://192.168.0.105:8000/api/logs"
 
     headers = {"Content-Type": "application/json; charset=utf-8"}
 
     try:
-        # Leer las últimas 10 líneas del archivo de logs
-        try:
-            with open(LOG_FILE, "r") as f:
-                lines = f.readlines()
-            last_lines = lines[-10:] if lines else []
-            # Convertir a string único con saltos de línea
-            logs_content = "".join(last_lines).strip()
-        except OSError:
-            logs_content = "No log file found"
-        
-        payload_json = json.dumps({"log": logs_content})
+        # Serializar con ensure_ascii=False para caracteres UTF-8
+        payload_json = json.dumps({"log": msg}, ensure_ascii=False)
         r = urequests.post(url, data=payload_json, headers=headers)
         r.close()
     except Exception as e:
@@ -117,7 +108,8 @@ def send_logs(msg):
 
 
 def get_weather_multiplier():
-    url = f"{BASE_API_URL}/weather-multiplier"
+    url = "http://192.168.0.105:8000/api/weather-multiplier"
+
     try:
         r = urequests.get(url)
         data = r.json()
