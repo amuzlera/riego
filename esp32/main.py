@@ -6,7 +6,6 @@ from server_utils import log
 from server import start_server
 from task import riego_scheduler_loop
 from time_utils import sync_time_from_ntp
-from boot import CONFIG_PATH
 
 
 async def safe_task(name, coro):
@@ -67,7 +66,7 @@ async def main():
     heartbeat()
 
     asyncio.create_task(safe_task("server", start_server()))
-    asyncio.create_task(safe_task("riego_scheduler", riego_scheduler_loop(CONFIG_PATH, poll_s=5)))
+    asyncio.create_task(safe_task("riego_scheduler", riego_scheduler_loop(poll_s=5)))
     asyncio.create_task(safe_task("healthcheck", healthcheck()))
 
     while True:
