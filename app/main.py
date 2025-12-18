@@ -224,3 +224,7 @@ def control_panel():
     return FileResponse("static/control_panel.html")
 # python -m uvicorn app.main:app --reload
 # python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+## On EC2 instance:
+# ssh -i "am-server-keypair.pem" ubuntu@ec2-56-124-102-170.sa-east-1.compute.amazonaws.com
+# http://56.124.102.170:8000
