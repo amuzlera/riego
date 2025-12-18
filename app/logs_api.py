@@ -10,8 +10,7 @@ router = APIRouter()
 
 
 class LogPayload(BaseModel):
-    logs: list[str] | None = None
-    log: str | list[str] | None = None  # Aceptar ambos formatos
+    log: str
 
 
 @router.post("/logs")
@@ -19,36 +18,10 @@ async def receive_logs(request: Request):
     try:
         payload = await request.json()
     except Exception as e:
-        # Si no es JSON válido, intentar como texto
-        body = await request.body()
-        print(f"ERROR parsing JSON: {e}")
-        print(f"RAW BODY: {body}")
         return {"status": "error", "error": str(e)}, 400
     
-    import json
-    print("RAW PAYLOAD:", json.dumps(payload, default=str, ensure_ascii=False))
-    print("payload:", payload)
-    
-    # Aceptar ambos formatos: "logs" y "log"
-    lines = []
-    if payload.get("log"):
-        log_data = payload.get("log")
-        if isinstance(log_data, str):
-            # Si es un string compacto con múltiples líneas, dividirlo
-            lines = [line for line in log_data.split("\n") if line.strip()]
-        elif isinstance(log_data, list):
-            lines = log_data
-    else:
-        lines = payload.get("logs") or []
-    
-    # Aplanar la lista en caso de que haya listas anidadas
-    flat_lines = []
-    for item in lines:
-        if isinstance(item, list):
-            flat_lines.extend(item)
-        else:
-            flat_lines.append(str(item))
-    lines = flat_lines
+    log_data = payload.get("log", "")
+    lines = [line for line in log_data.split("\n") if line.strip()]
     
     if not lines:
         return {"status": "ok", "received_lines": 0}
