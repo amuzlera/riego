@@ -2,7 +2,7 @@ import sys
 import uasyncio as asyncio
 import network, config, machine, time
 from machine import WDT
-from server_utils import log
+from server_utils import log, log_and_send
 from server import start_server
 from task import riego_scheduler_loop
 from time_utils import sync_time_from_ntp
@@ -19,8 +19,8 @@ async def safe_task(name, coro):
         tb_str = output.getvalue()
         output.close()
         
-        log(f"Tarea '{name}' falló: {e}")
-        log(f"Traceback:\n{tb_str}")
+        log_and_send(f"Tarea '{name}' falló: {e}")
+        log_and_send(f"Traceback:\n{tb_str}")
 
 
 

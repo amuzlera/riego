@@ -4,6 +4,8 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
+
+from app.actions import get_actions_router
 from .logs_api import router as logs_router
 from .wheater import weather_router
 
@@ -17,6 +19,7 @@ ESP_TIMEOUT = float(os.getenv("ESP_TIMEOUT", "5"))
 app = FastAPI(title="Riego UI + ESP Proxy")
 app.include_router(logs_router, prefix="/api")  # <- esto pone /api/logs/tail
 app.include_router(weather_router, prefix="/api")
+app.include_router(get_actions_router, prefix="/api")
 
 # ---------- helpers ----------
 
@@ -54,6 +57,23 @@ def _as_response(r: httpx.Response):
     return PlainTextResponse(status_code=r.status_code, content=r.text)
 
 # ---------- API del ESP: endpoints específicos ----------
+
+
+
+
+@app.get("/api/esp/get_actions")
+async def esp_get_actions():
+    """
+    GET {ESP_HOST}/ls
+    Devuelve {"files": [...]} según tu firmware.
+    """
+    try:
+        r = await _esp_get("/ls")
+        return _as_response(r)
+    except httpx.TimeoutException:
+        return JSONResponse(status_code=504, content={"error": "timeout"})
+    except httpx.RequestError as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
 
 
 @app.get("/api/esp/ls")

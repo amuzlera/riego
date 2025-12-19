@@ -84,6 +84,28 @@ def log(msg, ts=None):
     _truncate_log_if_needed()
 
 
+def send_logs(log_str, server_url="http://56.124.102.170:8000", ts=None):
+    try:
+        ts = ts or now_local()
+        time = "{:02d}:{:02d}:{:02d} - ".format(ts[3], ts[4], ts[5])
+        payload = {"log": f"{time}{log_str}"}
+
+    except Exception as e:
+        log("Error preparing logs payload: {}".format(e))
+        return {"ok": False, "error": str(e)}
+
+    try:
+        log(f"Sending logs to server... {payload.get("log")}")
+        r = urequests.post(f"{server_url}/api/logs", json=payload)
+        text = r.text
+        r.close()
+        log(f"Logs sent successfully. {text}")
+        return {"ok": True}
+    except Exception as e:
+        log("Error sending logs: {}".format(e))
+        return {"ok": False, "error": str(e)}
+
+# la dejo por las dudas
 def send_logs_batch(logs, server_url="http://56.124.102.170:8000", ts=None):
     try:
         ts = ts or now_local()
@@ -116,7 +138,7 @@ def send_logs_batch(logs, server_url="http://56.124.102.170:8000", ts=None):
 def log_and_send(msg):
     ts = now_local()
     log(msg, ts=ts)
-    send_logs_batch([msg], ts=ts)
+    send_logs(msg, ts=ts)
 
 def send_logs_from_file():
     """Envía los logs guardados en el archivo al servidor remoto"""
@@ -126,7 +148,7 @@ def send_logs_from_file():
         if not lines:
             return {"ok": True, "message": "No logs to send"}
 
-        result = send_logs_batch([line.strip() for line in lines])
+        result = send_logs([line.strip() for line in lines])
         return result
     except Exception as e:
         log("Error sending logs from file: {}".format(e))

@@ -63,18 +63,18 @@ async def tail_log(n: int = Query(20, ge=1, le=500)):
         # Usar el log de hoy
         today = datetime.now().strftime("%Y/%m/%d")
         log_file = Path(f"{today}.log")
-        
+
         if not log_file.exists():
             return {"lines": [], "file": str(log_file), "count": 0}
-        
+
         with open(log_file, "r", encoding="utf-8") as f:
             all_lines = f.readlines()
-        
+
         # Devolver las últimas n líneas
         last_lines = all_lines[-n:] if len(all_lines) > n else all_lines
         # Remover saltos de línea
         last_lines = [line.rstrip("\n") for line in last_lines]
-        
+
         return {
             "lines": last_lines,
             "file": str(log_file),
