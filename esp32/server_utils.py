@@ -71,40 +71,66 @@ def _truncate_log_if_needed():
                 f.write(l)
 
 
-def log(msg, send=True):
+def log(msg, ts=None):
     # Crear línea con timestamp
-    ts = now_local()
+    ts = ts or now_local()
     line = "{:02d}:{:02d}:{:02d} - {}".format(ts[3], ts[4], ts[5], msg)
     print(line)
 
     # Escribir a archivo
     _write_to_log_file(line)
 
-    # Enviar al servidor
-    if send:
-        send_logs([line])
-
     # Truncar si es necesario
     _truncate_log_if_needed()
 
 
-def send_logs(msg):
-    url = "http://192.168.0.105:8000/api/logs"
+def send_logs_batch(logs, server_url="http://56.124.102.170:8000", ts=None):
+    try:
+        ts = ts or now_local()
+        lines = []
+        for l in logs:
+            if isinstance(l, dict):
+                lines.append(json.dumps(l))   # JSON por línea
+            else:
+                lines.append(str(l))
+                
+        time = "{:02d}:{:02d}:{:02d} - ".format(ts[3], ts[4], ts[5])
+        payload = {
+            "log": "\n".join(f"{time}{line}" for line in lines)
+        }
 
-    headers = {"Content-Type": "application/json; charset=utf-8"}
+    except Exception as e:
+        log("Error preparing logs payload: {}".format(e))
+        return {"ok": False, "error": str(e)}
 
     try:
-        # Serializar con ensure_ascii=False para caracteres UTF-8
-        payload_json = json.dumps({"log": msg}, ensure_ascii=False)
-        r = urequests.post(url, data=payload_json, headers=headers)
+        r = urequests.post(f"{server_url}/api/logs", json=payload)
+        text = r.text
         r.close()
+        log(f"Logs sent successfully. {text}")
+        return {"ok": True}
     except Exception as e:
-        # Loguear sin enviar para evitar recursión
-        ts = now_local()
-        line = "{:02d}:{:02d}:{:02d} - Error enviando logs: {}".format(
-            ts[3], ts[4], ts[5], str(e))
-        print(line)
-        _write_to_log_file(line)
+        log("Error sending logs: {}".format(e))
+        return {"ok": False, "error": str(e)}
+
+def log_and_send(msg):
+    ts = now_local()
+    log(msg, ts=ts)
+    send_logs_batch([msg], ts=ts)
+
+def send_logs_from_file():
+    """Envía los logs guardados en el archivo al servidor remoto"""
+    try:
+        with open(LOG_FILE, "r") as f:
+            lines = f.readlines()
+        if not lines:
+            return {"ok": True, "message": "No logs to send"}
+
+        result = send_logs_batch([line.strip() for line in lines])
+        return result
+    except Exception as e:
+        log("Error sending logs from file: {}".format(e))
+        return {"ok": False, "error": str(e)}
 
 
 def get_weather_multiplier():

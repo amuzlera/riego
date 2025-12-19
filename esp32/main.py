@@ -24,7 +24,7 @@ async def safe_task(name, coro):
 
 
 
-wdt = WDT(timeout=20000)
+wdt = WDT(timeout=30000)
 last_ok = time.time()
 
 def heartbeat():
