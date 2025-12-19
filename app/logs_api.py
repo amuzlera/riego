@@ -1,8 +1,6 @@
 # logs_api.py
 from pydantic import BaseModel
 from fastapi import APIRouter, Query, Request
-import requests
-from requests.auth import HTTPBasicAuth
 from datetime import datetime
 from pathlib import Path
 

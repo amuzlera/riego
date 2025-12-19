@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
 
-from app.actions import get_actions_router
+from app.actions import get_actions_router, get_config_router
 from .logs_api import router as logs_router
 from .wheater import weather_router
 
@@ -17,13 +17,12 @@ ESP_PASS = os.getenv("ESP_PASS", "1234")
 ESP_TIMEOUT = float(os.getenv("ESP_TIMEOUT", "5"))
 
 app = FastAPI(title="Riego UI + ESP Proxy")
-app.include_router(logs_router, prefix="/api")  # <- esto pone /api/logs/tail
+app.include_router(logs_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
 app.include_router(get_actions_router, prefix="/api")
+app.include_router(get_config_router, prefix="/api")
 
 # ---------- helpers ----------
-
-
 async def _esp_get(path: str, params: dict | None = None):
     url = f"{ESP_HOST}{path}"
     if params:

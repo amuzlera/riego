@@ -2,6 +2,7 @@ import json
 from machine import Pin
 
 CONFIG_PATH = "config_riego.json"
+SERVER_URL = "http://56.124.102.170:8000"
 
 def safe_high(pins):
     """Inicializa cada pin en HIGH para relé activo LOW"""

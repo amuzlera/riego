@@ -1,3 +1,4 @@
+from boot import SERVER_URL
 import urequests
 import uos
 import time
@@ -84,7 +85,7 @@ def log(msg, ts=None):
     _truncate_log_if_needed()
 
 
-def send_logs(log_str, server_url="http://56.124.102.170:8000", ts=None):
+def send_logs(log_str, ts=None):
     try:
         ts = ts or now_local()
         time = "{:02d}:{:02d}:{:02d} - ".format(ts[3], ts[4], ts[5])
@@ -96,7 +97,7 @@ def send_logs(log_str, server_url="http://56.124.102.170:8000", ts=None):
 
     try:
         log(f"Sending logs to server... {payload.get("log")}")
-        r = urequests.post(f"{server_url}/api/logs", json=payload)
+        r = urequests.post(f"{SERVER_URL}/api/logs", json=payload)
         text = r.text
         r.close()
         log(f"Logs sent successfully. {text}")
@@ -106,7 +107,7 @@ def send_logs(log_str, server_url="http://56.124.102.170:8000", ts=None):
         return {"ok": False, "error": str(e)}
 
 # la dejo por las dudas
-def send_logs_batch(logs, server_url="http://56.124.102.170:8000", ts=None):
+def send_logs_batch(logs, ts=None):
     try:
         ts = ts or now_local()
         lines = []
@@ -126,7 +127,7 @@ def send_logs_batch(logs, server_url="http://56.124.102.170:8000", ts=None):
         return {"ok": False, "error": str(e)}
 
     try:
-        r = urequests.post(f"{server_url}/api/logs", json=payload)
+        r = urequests.post(f"{SERVER_URL}/api/logs", json=payload)
         text = r.text
         r.close()
         log(f"Logs sent successfully. {text}")
@@ -179,3 +180,10 @@ def get_weather_multiplier():
             "multiplier": 1.0,
             "details": "fail to fetch"
         }
+
+def get_remote_config():
+    url = f"{SERVER_URL}/api/esp/config"
+    r = urequests.get(url)
+    data = r.json()
+    r.close()
+    return data
