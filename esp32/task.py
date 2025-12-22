@@ -1,9 +1,9 @@
 import uasyncio as asyncio
 import ujson as json
 from machine import Pin
-from server_utils import log, get_weather_multiplier, log_and_send, send_logs_batch
+from server_utils import get_remote_config, log, get_weather_multiplier, log_and_send, send_logs
 from time_utils import now_local
-from boot import CONFIG_PATH
+from config import CONFIG_PATH, SERVER_URL
 
 # ------------------ Helpers de día/tiempo ------------------
 SPANISH_WD = {
@@ -13,99 +13,104 @@ SPANISH_WD = {
 }
 
 
-# ------------------ Loop principal ------------------
+def parse_to_minutes(time_str):
+    h, m = time_str.strip().split(":")
+    return int(h) * 60 + int(m)
 
-def parse_period_to_minutes(period_str):
-    start, end = period_str.split("-")
-    sh, sm = start.split(":")
-    eh, em = end.split(":")
-    return int(sh) * 60 + int(sm), int(eh) * 60 + int(em)
-
-
-def create_today_plan(today):
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            raw = json.load(f)
-        zones = raw.get("zones", {})
-        today_plans = []
-        for zone, plan in raw.get("programed_times", {}).items():
-            days = [SPANISH_WD[d.strip().lower()] for d in plan.get(
-                "days", [])] if isinstance(plan.get("days"), list) else []
-            if today in days or "all" in plan.get("days", []):
-                periods = [parse_period_to_minutes(
-                    p) for p in plan.get("periods", [])]
-                for p in periods:
-                    today_plans.append({"zone": zone, "period": p})
-
-        return sorted(today_plans, key=lambda x: x["period"][0]), zones
-    except Exception as e:
-        log(f"Config: no se pudo leer: {e}")
-        return {}, {}
 
 ZONE_PINS = {}
+ZONES = {}
 
 
-def get_pin(pin_num):
+def get_pin(zone):
+    pin_num = ZONES.get(zone)
     if pin_num not in ZONE_PINS:
         ZONE_PINS[pin_num] = Pin(pin_num, Pin.OUT, value=1)
     return ZONE_PINS[pin_num]
 
-async def async_job(zone_pin_num, zone, duration):
-    pin = get_pin(zone_pin_num)
-    log_and_send(f"Riego zona {zone} iniciado")
-    try:
-        pin.value(0)
-        await asyncio.sleep(duration * 60)
-    except Exception as e:
-        log_and_send(f"Error en riego zona {zone}: {e}")
-    finally:
-        pin.value(1)
-        log_and_send(f"Riego zona {zone} finalizado")
 
+def get_programed_times():
+    try:
+        config = get_remote_config()
+        if not config or "programed_times" not in config or "zones" not in config:
+            raise Exception("Configuración remota inválida")
+        return config.get("programed_times", {}), config.get("zones", {})
+    except Exception as e:
+        log(f"Error getting remote config: {e}")
+        
+        with open(CONFIG_PATH, "r") as f:
+            config = json.load(f)
+        return config.get("programed_times", {}), config.get("zones", {})
+
+
+async def start_plan(plan):
+    for p in plan:
+        zone, duration = p
+        pin = get_pin(zone)
+        log_and_send(f"Riego zona {zone} iniciado")
+        try:
+            pin.value(0)
+            await asyncio.sleep(duration * 60)
+        except Exception as e:
+            log_and_send(f"Error en riego zona {zone}: {e}")
+        finally:
+            pin.value(1)
+            log_and_send(f"Riego zona {zone} finalizado")
+
+
+def get_next_plan(programed_times, current_minutes):
+    next_plans = []
+    for p in programed_times:
+        start = parse_to_minutes(p.get("start", "00:00"))
+        if start > current_minutes and p.get("status") != "done":
+            next_plans.append((start, p))
+    if not next_plans:
+        return "No hay planes programados"
+    next_plan = sorted(next_plans, key=lambda x: x[0])[0][1]
+    return f"{next_plan.get('start')} - Zonas: {len(next_plan.get('plan', []))}"
 
 
 async def riego_scheduler_loop(poll_s=5):
     log("RUNNING riego_scheduler_loop")
     t = now_local()
     today = t[6]
-    programed_times, zones = create_today_plan(today)
+    programed_times, zones = get_programed_times()
+    ZONES.clear()
+    ZONES.update(zones)
     first_plan_log = True
     while True:
         t = now_local()
         if today != t[6]:
             today = t[6]
-            programed_times, zones = create_today_plan(today)
+            programed_times, zones = get_programed_times()
             log_and_send(f"Nuevo día {today}")
             first_plan_log = True
-  #          send_logs_batch([f"Plan hoy: zona={p['zone']} {p['period'][0]}-{p['period'][1]}" for p in programed_times])
 
         if not programed_times:
             await asyncio.sleep(poll_s)
             continue
 
         current_minutes = t[3] * 60 + t[4]
-        next_start = programed_times[0]["period"][0]
-        next_end = programed_times[0]["period"][1]
+        for program in programed_times:
+            days = program.get("days", [])
+            if "all" in days or today in [SPANISH_WD[d.strip().lower()] for d in days]:
+                start = parse_to_minutes(program.get("start", "00:00"))
 
-        if abs(current_minutes - next_start) < 3 or first_plan_log:
-            delta = max(0, next_start - current_minutes)
-            log_and_send(f"next_start in {delta} minutes")
+                # Condicion para iniciar el plan
+                if start <= current_minutes and program.get("status") != "done":
+                    if current_minutes - start > 15:
+                        log_and_send(
+                            f"Saltando plan iniciado a las {program.get('start')} (demasiado tarde)")
+                        program["status"] = "done"
+                        continue
+
+                    asyncio.create_task(start_plan(program.get("plan", [])))
+                    program["status"] = "done"
+                    first_plan_log = True
+
+        if first_plan_log:
+            next_plan = get_next_plan(programed_times, current_minutes)
+            log_and_send(f"Proximos riegos: {next_plan}")
             first_plan_log = False
-
-        if next_start <= current_minutes:
-
-            if current_minutes >= next_end:
-                log_and_send(f"Periodo {next_start}-{next_end} ya pasó, descartando")
-                programed_times.pop(0)
-                first_plan_log = True
-                continue
-
-            plan = programed_times.pop(0)
-            zone_pin_num = zones.get(plan["zone"])
-
-            log_and_send(
-                f"Regando zona {plan['zone']} (pin {zone_pin_num}) de {plan['period'][0]} a {plan['period'][1]}")
-            duration = plan["period"][1] - plan["period"][0]
-            asyncio.create_task(async_job(zone_pin_num, plan['zone'], duration))
 
         await asyncio.sleep(poll_s)
