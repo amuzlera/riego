@@ -1,3 +1,4 @@
+from remote_actions import execute_remote_actions
 import uasyncio as asyncio
 import ujson as json
 from machine import Pin
@@ -113,4 +114,5 @@ async def riego_scheduler_loop(poll_s=5):
             log_and_send(f"Proximos riegos: {next_plan}")
             first_plan_log = False
 
+        execute_remote_actions()
         await asyncio.sleep(poll_s)

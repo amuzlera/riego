@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
 
-from app.actions import get_actions_router, get_config_router
+from app.actions import get_actions_router, get_config_router, get_actions_router
 from .logs_api import router as logs_router
 from .wheater import weather_router
 
@@ -21,6 +21,7 @@ app.include_router(logs_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
 app.include_router(get_actions_router, prefix="/api")
 app.include_router(get_config_router, prefix="/api")
+app.include_router(get_actions_router, prefix="/api")
 
 # ---------- helpers ----------
 async def _esp_get(path: str, params: dict | None = None):

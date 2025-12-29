@@ -6,8 +6,10 @@ get_config_router = APIRouter()
 
 @get_actions_router.get("/get_actions")
 def get_actions():
-    with open("app/config_riego.json", "r") as f:
+    with open("app/actions.json", "r") as f:
         data = json.load(f)
+    with open("app/actions.json", "w") as f:
+        json.dump([], f)
     return data
 
 

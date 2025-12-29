@@ -1,4 +1,4 @@
-from boot import SERVER_URL
+from config import SERVER_URL
 import urequests
 import uos
 import time
@@ -182,7 +182,7 @@ def get_weather_multiplier():
         }
 
 def get_remote_config():
-    url = f"{SERVER_URL}/api/esp/config"
+    url = f"{SERVER_URL}/api/get_config"
     r = urequests.get(url)
     data = r.json()
     r.close()
