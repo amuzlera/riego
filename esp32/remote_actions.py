@@ -7,15 +7,21 @@ from server_utils import send_logs
 
 
 def get_actions():
-    url = f"{SERVER_URL}/api/get_actions"
-    r = urequests.get(url)
-    data = r.json()
-    r.close()
-    return data
+    try:
+        url = f"{SERVER_URL}/api/get_actions"
+        r = urequests.get(url)
+        data = r.json()
+        r.close()
+        return data
+    except Exception as e:
+        send_logs(f"get_actions failed: {e}")
+        return []
+
+VALID_ACTION_TYPES = {"change_zone"}
 
 def execute_remote_actions():
     for act in get_actions():
-        if act.get("type") != "change_zone":
+        if act.get("type") not in VALID_ACTION_TYPES:
             continue
 
         try:
