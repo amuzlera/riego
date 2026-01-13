@@ -6,6 +6,8 @@ import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
 
 from app.actions import get_actions_router, get_config_router, get_actions_router
+from app.handlers import get_zone_handler, get_execute_handler, _esp_get, _esp_post, _as_response
+from app.mode_config import get_current_mode
 from .logs_api import router as logs_router
 from .wheater import weather_router
 
@@ -23,38 +25,7 @@ app.include_router(get_actions_router, prefix="/api")
 app.include_router(get_config_router, prefix="/api")
 app.include_router(get_actions_router, prefix="/api")
 
-# ---------- helpers ----------
-async def _esp_get(path: str, params: dict | None = None):
-    url = f"{ESP_HOST}{path}"
-    if params:
-        url += f"?{urlencode(params)}"
-    auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
-    async with httpx.AsyncClient(timeout=ESP_TIMEOUT) as client:
-        r = await client.get(url, auth=auth)
-    return r
-
-
-async def _esp_post(path: str, params: dict | None = None, data: str = ""):
-    url = f"{ESP_HOST}{path}"
-    if params:
-        url += f"?{urlencode(params)}"
-    auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
-    # El firmware que compartiste lee el body como texto (no JSON)
-    headers = {"Content-Type": "text/plain; charset=utf-8"}
-    async with httpx.AsyncClient(timeout=ESP_TIMEOUT) as client:
-        r = await client.post(url, auth=auth, content=data.encode("utf-8"), headers=headers)
-    return r
-
-
-def _as_response(r: httpx.Response):
-    # Tu firmware devuelve JSON en todas las rutas -> lo pasamos tal cual
-    ctype = r.headers.get("content-type", "")
-    if "application/json" in ctype:
-        try:
-            return JSONResponse(status_code=r.status_code, content=r.json())
-        except Exception:
-            return PlainTextResponse(status_code=r.status_code, content=r.text)
-    return PlainTextResponse(status_code=r.status_code, content=r.text)
+# Los helpers están ahora en app/handlers.py
 
 # ---------- API del ESP: endpoints específicos ----------
 
@@ -157,17 +128,17 @@ async def esp_exec(
 
 
 
-@app.post("/api/esp/zone")
-async def esp_zone(request: Request, body: str = Body("", media_type="text/plain"),
+@app.post("/api/zone")
+async def api_zone(request: Request, body: str = Body("", media_type="text/plain"),
                    zone: str | None = Query(None), action: str | None = Query(None),
                    duration: int | None = Query(None)):
     """
-    Proxy para encender/apagar zonas del ESP.
+    Control de zonas con modo dinámico (direct o remote).
+    Según RIEGO_MODE, usa handlers de DirectHandlers o RemoteHandlers.
+    
     Formatos aceptados:
       - Body corto: "zone1 on 3600" (zona, action, duration opcional)
       - Query params: zone=<zona>, action=on|off, duration=<s>
-
-    Reenvía a {ESP_HOST}/zone?zone=...&action=...&duration=...
     """
     # Priorizar query params si están presentes
     z = zone
@@ -176,7 +147,6 @@ async def esp_zone(request: Request, body: str = Body("", media_type="text/plain
 
     # Si no vienen en query, intentar parsear el body corto
     if not z and body:
-        # body puede venir con newline; tomamos la primera linea
         first = body.splitlines()[0].strip()
         if first:
             parts = first.split()
@@ -193,43 +163,31 @@ async def esp_zone(request: Request, body: str = Body("", media_type="text/plain
     if not z:
         return JSONResponse(status_code=400, content={"error": "zone requerido"})
 
-    params = {"zone": z}
-    if a:
-        params["action"] = a
-    if d is not None:
-        params["duration"] = str(d)
-
-    try:
-        # Usamos GET porque el firmware acepta GET para /zone (como otros endpoints)
-        r = await _esp_get("/zone", params)
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+    # Obtener el handler correcto (direct o remote)
+    handler = get_zone_handler()
+    return await handler(z, a or "", d)
 
 
-@app.get("/api/esp/execute")
-async def esp_execute(code: str = Query(..., description="Código Python a ejecutar en ESP32")):
+@app.get("/api/execute")
+async def api_execute(code: str = Query(..., description="Código a ejecutar")):
     """
-    Ejecuta código Python en el ESP32.
+    Ejecuta código con modo dinámico (direct o remote).
+    Según RIEGO_MODE, usa handlers de DirectHandlers o RemoteHandlers.
     
     Ejemplos:
-      - /api/esp/execute?code=pin=Pin(2,Pin.IN)%0Aprint(pin.value())
-      - /api/esp/execute?code=print(machine.freq())
-    
-    Retorna: {"result": "salida", "error": null}
+      - /api/execute?code=pin=Pin(2,Pin.IN)%0Aprint(pin.value())
     """
-    try:
-        r = await _esp_get("/execute", {"code": code})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+    handler = get_execute_handler()
+    return await handler(code)
 
 # ---------- Frontend ----------
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/api/config/mode")
+async def get_mode():
+    """Devuelve el modo actual de operación (direct o remote)"""
+    return JSONResponse(content={"mode": get_current_mode()})
 
 
 @app.get("/")

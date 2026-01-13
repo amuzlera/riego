@@ -7,10 +7,6 @@ from pathlib import Path
 router = APIRouter()
 
 
-class LogPayload(BaseModel):
-    log: str
-
-
 @router.post("/logs")
 async def receive_logs(request: Request):
     try:
@@ -52,7 +48,7 @@ ESP32_PASS = "1234"
 
 
 @router.get("/logs/tail")
-async def tail_log(n: int = Query(20, ge=1, le=500)):
+async def tail_log(n: int = Query(30, ge=1, le=500)):
     """
     Devuelve las últimas n líneas de logs guardados localmente en el servidor.
     Los logs vienen del ESP32 que los envía regularmente vía POST /logs.

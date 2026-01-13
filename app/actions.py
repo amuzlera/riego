@@ -8,8 +8,9 @@ get_config_router = APIRouter()
 def get_actions():
     with open("app/actions.json", "r") as f:
         data = json.load(f)
-    with open("app/actions.json", "w") as f:
-        json.dump([], f)
+    if data:
+        with open("app/actions.json", "w") as f:
+            json.dump([], f)
     return data
 
 

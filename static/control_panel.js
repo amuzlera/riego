@@ -5,24 +5,45 @@ document.addEventListener('DOMContentLoaded', () => {
     out.textContent = text;
   }
 
-  async function sendZone(zone, action, duration) {
-    const params = new URLSearchParams({ zone: String(zone), action: String(action) });
-    if (duration != null) params.set('duration', String(duration));
-    const url = `/api/esp/zone?${params.toString()}`;
-    setOut(`Enviando ${url} ...`);
-    try {
-      const res = await fetch(url, { method: 'POST' });
-      const text = await res.text();
-      let parsed;
-      try { parsed = JSON.parse(text); }
-      catch (_) { parsed = text; }
-      setOut(`Respuesta (${res.status}): ` + (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)));
-      return { ok: res.ok, status: res.status, body: parsed };
-    } catch (err) {
-      setOut('Error: ' + err.message);
-      return { ok: false, error: err };
+  // ============ HANDLERS (agnóstico de modo) ============
+  const handlers = {
+    sendZone: async (zone, action, duration) => {
+      const params = new URLSearchParams({ zone: String(zone), action: String(action) });
+      if (duration != null) params.set('duration', String(duration));
+      const url = `/api/zone?${params.toString()}`;
+      setOut(`Enviando ${url} ...`);
+      try {
+        const res = await fetch(url, { method: 'POST' });
+        const text = await res.text();
+        let parsed;
+        try { parsed = JSON.parse(text); }
+        catch (_) { parsed = text; }
+        setOut(`Respuesta (${res.status}): ` + (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)));
+        return { ok: res.ok, status: res.status, body: parsed };
+      } catch (err) {
+        setOut('Error: ' + err.message);
+        return { ok: false, error: err };
+      }
+    },
+
+    executeCode: async (code) => {
+      const encoded = encodeURIComponent(code);
+      const url = `/api/execute?code=${encoded}`;
+      setOut(`Ejecutando código...`);
+      try {
+        const res = await fetch(url, { method: 'GET' });
+        const text = await res.text();
+        let parsed;
+        try { parsed = JSON.parse(text); }
+        catch (_) { parsed = text; }
+        setOut(`Respuesta (${res.status}): ` + (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)));
+        return { ok: res.ok, status: res.status, body: parsed };
+      } catch (err) {
+        setOut('Error: ' + err.message);
+        return { ok: false, error: err };
+      }
     }
-  }
+  };
 
   // Attach listeners to zone switches
   document.querySelectorAll('.zone-switch').forEach(btn => {
@@ -46,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateButtonColor(btn, next);
       btn.disabled = true;
 
-      const result = await sendZone(zone, next, duration);
+      const result = await handlers.sendZone(zone, next, duration);
       btn.disabled = false;
       if (!result.ok) {
         // revert UI on failure
@@ -80,19 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const encoded = encodeURIComponent(code);
-    const url = `/api/esp/execute?code=${encoded}`;
-    setOut(`Ejecutando código en ESP32...`);
-    
-    try {
-      const res = await fetch(url, { method: 'GET' });
-      const text = await res.text();
-      let parsed;
-      try { parsed = JSON.parse(text); }
-      catch (_) { parsed = text; }
-      setOut(`Respuesta (${res.status}): ` + (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)));
-    } catch (err) {
-      setOut('Error: ' + err.message);
-    }
+    const result = await handlers.executeCode(code);
   });
 });

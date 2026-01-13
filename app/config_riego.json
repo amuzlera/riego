@@ -1,0 +1,16 @@
+{   "tz_offset_seconds": 10800,
+    "zones": {
+        "zona1": 19,
+        "zona2": 5,
+        "zona3": 18,
+        "zona4": 25,
+        "zona5": 26,
+        "zona6": 27
+    },
+    "programed_times": [
+        {"start": "23:30", "days": ["all"], "plan": [["zona1", 15], ["zona3", 10], ["zona4", 15], ["zona5", 20]]},
+        {"start": "03:30", "days": ["all"], "plan": [["zona1", 10], ["zona3", 5], ["zona4", 10], ["zona5", 12]]},
+        {"start": "06:30", "days": ["all"], "plan": [["zona1", 15], ["zona3", 10], ["zona4", 15], ["zona5", 20]]},
+        {"start": "20:00", "days": ["all"], "plan": [["zona6", 180]]}
+    ]
+}
