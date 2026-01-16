@@ -13,7 +13,7 @@ class Mode(str, Enum):
     REMOTE = "remote"
 
 # Leer del ambiente o usar default "direct" (comportamiento actual)
-CURRENT_MODE = os.getenv("RIEGO_MODE", "direct").lower()
+CURRENT_MODE = os.getenv("RIEGO_MODE", "remote").lower()
 if CURRENT_MODE not in [m.value for m in Mode]:
     CURRENT_MODE = Mode.DIRECT.value
 
