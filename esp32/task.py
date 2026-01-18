@@ -35,7 +35,10 @@ def get_programed_times():
         config = get_remote_config()
         if not config or "programed_times" not in config or "zones" not in config:
             raise Exception("Configuración remota inválida")
-        return config.get("programed_times", {}), config.get("zones", {})
+        else:
+            with open(CONFIG_PATH, "w") as f:
+                json.dump(config, f)
+            return config.get("programed_times", {}), config.get("zones", {})
     except Exception as e:
         log(f"Error getting remote config: {e}")
         
