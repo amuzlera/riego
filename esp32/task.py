@@ -74,6 +74,17 @@ def get_next_plan(programed_times, current_minutes):
     return f"{next_plan.get('start')} - Zonas: {len(next_plan.get('plan', []))}"
 
 
+def get_temp_and_humidity():
+    try:
+        import dht
+        sensor = dht.DHT22(Pin(4))
+        sensor.measure()
+        temp = sensor.temperature()
+        humidity = sensor.humidity()
+        log_and_send(f"Temperatura: {temp}°C, Humedad: {humidity}%")
+    except Exception as e:
+        log_and_send(f"Error leyendo DHT22: {e}")
+
 async def riego_scheduler_loop(poll_s=5):
     log("RUNNING riego_scheduler_loop")
     t = now_local()
@@ -118,4 +129,5 @@ async def riego_scheduler_loop(poll_s=5):
             first_plan_log = False
 
         execute_remote_actions()
+ #       get_temp_and_humidity()
         await asyncio.sleep(poll_s)

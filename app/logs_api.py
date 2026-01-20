@@ -1,8 +1,9 @@
-# logs_api.py
-from pydantic import BaseModel
 from fastapi import APIRouter, Query, Request
+import requests
 from datetime import datetime
 from pathlib import Path
+from requests.auth import HTTPBasicAuth
+from .mode_config import is_remote_mode
 
 router = APIRouter()
 
@@ -47,11 +48,42 @@ ESP32_USER = "admin"
 ESP32_PASS = "1234"
 
 
-@router.get("/logs/tail")
-async def tail_log(n: int = Query(30, ge=1, le=500)):
+async def _tail_log_remote(n: int = 20):
+    """
+    Devuelve el resultado del tail de log.txt directamente desde el ESP32.
+    Modo REMOTE: consulta archivos locales del servidor (ESP32).
+    """
+
+    try:
+        # Construimos la URL del ESP32
+        esp_url = f"{ESP32_IP}/tail?filename=log.txt"
+
+        print(esp_url)
+        # Llamada HTTP al ESP32
+        r = requests.get(
+            f"{ESP32_IP}/tail?filename=log.txt",
+            timeout=5,
+            auth=HTTPBasicAuth(ESP32_USER, ESP32_PASS)
+        )
+        r.raise_for_status()
+
+        lines = r.text.splitlines()
+
+        return {"lines": lines}
+
+    except requests.exceptions.RequestException as e:
+        # Error de conexión o timeout
+        return {"lines": [], "error": f"No se pudo conectar al ESP32: {e}"}
+    except ValueError:
+        # JSON malformado
+        return {"lines": [], "error": "Respuesta inválida del ESP32"}
+
+
+async def _tail_log_local(n: int = 30):
     """
     Devuelve las últimas n líneas de logs guardados localmente en el servidor.
     Los logs vienen del ESP32 que los envía regularmente vía POST /logs.
+    Modo LOCAL: consulta logs guardados en el servidor.
     """
     try:
         # Usar el log de hoy
@@ -77,3 +109,19 @@ async def tail_log(n: int = Query(30, ge=1, le=500)):
         }
     except Exception as e:
         return {"error": str(e), "lines": []}, 400
+
+
+@router.get("/logs/tail")
+async def tail_log(n: int = Query(30, ge=1, le=500)):
+    """
+    Endpoint público que devuelve logs según RIEGO_MODE.
+    
+    - Si RIEGO_MODE=remote: consulta ESP32 directamente (/tail del ESP32)
+    - Si RIEGO_MODE=direct: consulta archivos locales del servidor (guardados por POST /logs)
+    """
+    if is_remote_mode():
+        # Remote: consultar ESP32 directamente
+        return await _tail_log_remote(n)
+    else:
+        # Direct/Local: consultar archivos guardados
+        return await _tail_log_local(n)

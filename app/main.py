@@ -1,6 +1,5 @@
 import os
-from urllib.parse import urlencode
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import httpx
 from fastapi import FastAPI, Query, Body, Request, UploadFile
@@ -28,8 +27,6 @@ app.include_router(get_actions_router, prefix="/api")
 # Los helpers están ahora en app/handlers.py
 
 # ---------- API del ESP: endpoints específicos ----------
-
-
 
 
 @app.get("/api/esp/get_actions")
@@ -127,7 +124,6 @@ async def esp_exec(
         return JSONResponse(status_code=502, content={"error": str(e)})
 
 
-
 @app.post("/api/zone")
 async def api_zone(request: Request, body: str = Body("", media_type="text/plain"),
                    zone: str | None = Query(None), action: str | None = Query(None),
@@ -135,7 +131,7 @@ async def api_zone(request: Request, body: str = Body("", media_type="text/plain
     """
     Control de zonas con modo dinámico (direct o remote).
     Según RIEGO_MODE, usa handlers de DirectHandlers o RemoteHandlers.
-    
+
     Formatos aceptados:
       - Body corto: "zone1 on 3600" (zona, action, duration opcional)
       - Query params: zone=<zona>, action=on|off, duration=<s>
@@ -173,7 +169,7 @@ async def api_execute(code: str = Query(..., description="Código a ejecutar")):
     """
     Ejecuta código con modo dinámico (direct o remote).
     Según RIEGO_MODE, usa handlers de DirectHandlers o RemoteHandlers.
-    
+
     Ejemplos:
       - /api/execute?code=pin=Pin(2,Pin.IN)%0Aprint(pin.value())
     """
@@ -195,7 +191,6 @@ def root():
     return FileResponse("static/index.html")
 
 
-
 @app.get("/control_panel")
 def control_panel():
     """Sirve la página Control Panel (static/control_panel.html)"""
@@ -203,6 +198,6 @@ def control_panel():
 # python -m uvicorn app.main:app --reload
 # python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-## On EC2 instance:
+# On EC2 instance:
 # ssh -i "am-server-keypair.pem" ubuntu@ec2-56-124-102-170.sa-east-1.compute.amazonaws.com
 # http://56.124.102.170:8000
