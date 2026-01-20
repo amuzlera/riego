@@ -116,12 +116,12 @@ async def tail_log(n: int = Query(30, ge=1, le=500)):
     """
     Endpoint público que devuelve logs según RIEGO_MODE.
     
-    - Si RIEGO_MODE=remote: consulta ESP32 directamente (/tail del ESP32)
-    - Si RIEGO_MODE=direct: consulta archivos locales del servidor (guardados por POST /logs)
+    - Si RIEGO_MODE=direct: consulta ESP32 directamente (/tail del ESP32)
+    - Si RIEGO_MODE=remote: consulta archivos locales del servidor (guardados por POST /logs)
     """
     if is_remote_mode():
-        # Remote: consultar ESP32 directamente
-        return await _tail_log_remote(n)
-    else:
-        # Direct/Local: consultar archivos guardados
+        # Remote: consultar archivos guardados
         return await _tail_log_local(n)
+    else:
+        # Direct/Local: consultar ESP32 directamente
+        return await _tail_log_remote(n)
