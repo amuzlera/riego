@@ -9,6 +9,7 @@ from app.handlers import get_zone_handler, get_execute_handler, _esp_get, _esp_p
 from app.mode_config import get_current_mode
 from .logs_api import router as logs_router
 from .wheater import weather_router
+from .riego_config_api import router as riego_config_router
 
 
 # === Config del ESP (igual que antes) ===
@@ -22,6 +23,7 @@ app.include_router(logs_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
 app.include_router(get_actions_router, prefix="/api")
 app.include_router(get_config_router, prefix="/api")
+app.include_router(riego_config_router, prefix="/api")
 app.include_router(get_actions_router, prefix="/api")
 
 # Los helpers están ahora en app/handlers.py
