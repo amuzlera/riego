@@ -7,7 +7,7 @@ SPANISH_WD = {
     "domingo": 6
 }
 
-DEFAULT_TZ = 13-3 * 3600 # UTC-3
+DEFAULT_TZ = -3 * 3600  # UTC-3
 
 
 def now_local(tz_offset=DEFAULT_TZ):
@@ -42,6 +42,7 @@ def sync_time_from_ntp(host="pool.ntp.org", tz_offset=DEFAULT_TZ):
     """
     try:
         import ntptime
+        print("NTP sync: host={}".format(host))
         ntptime.host = host
         ntptime.settime()  # ajusta RTC en UTC
         return now_local(tz_offset)

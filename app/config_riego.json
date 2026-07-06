@@ -1,0 +1,25 @@
+{
+    "zones": {
+        "zona5": 26,
+        "zona4": 25,
+        "zona3": 18,
+        "zona2": 5,
+        "zona1": 19,
+        "zona6": 27
+    },
+    "tz_offset_seconds": 10800,
+    "programed_times": [
+        {
+            "start": "18:30",
+            "days": [
+                "all"
+            ],
+            "plan": [
+                [
+                    "zona6",
+                    180
+                ]
+            ]
+        }
+    ]
+}

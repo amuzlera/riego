@@ -1,0 +1,8 @@
+[
+  {
+    "type": "change_zone",
+    "zone": "zona3",
+    "action_type": "on",
+    "duration": 5
+  }
+]

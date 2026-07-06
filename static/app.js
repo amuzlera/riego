@@ -26,7 +26,7 @@ toggleBtn.addEventListener("click", () => {
 
 async function fetchLogs() {
   try {
-    const res = await fetch("/api/logs/tail?n=20");
+    const res = await fetch("/api/logs/tail?n=100");
     const data = await res.json();
     console.log(data);
     logbox.textContent = data.lines.join("\n");

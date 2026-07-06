@@ -1,0 +1,11 @@
+services:
+  simulator:
+    build:
+      context: ..
+      dockerfile: simulator/Dockerfile
+    working_dir: /workspace
+    command: ["python", "simulator/run.py"]
+    ports:
+      - "${SIM_PORT:-18080}:80"
+    volumes:
+      - ..:/workspace

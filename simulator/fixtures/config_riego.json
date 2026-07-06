@@ -1,0 +1,1 @@
+{"zones": {"luces": 19, "zona1": 5, "zona2": 18, "zona3": 25, "zona4": 26}, "programed_times": [{"start": "06:30", "days": ["all"], "status": "pending", "plan": [["zona1", 1], ["zona2", 1]]}]}

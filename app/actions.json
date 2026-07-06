@@ -1,0 +1,62 @@
+[
+  {
+    "type": "change_zone",
+    "action_type": "off",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "off",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "off",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  },
+  {
+    "type": "change_zone",
+    "action_type": "on",
+    "zone": "zona6",
+    "duration": 3600
+  }
+]

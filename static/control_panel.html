@@ -20,7 +20,7 @@
 
     <div class="card">
       <h3>Controles</h3>
-      <p class="muted">Presioná un switch para alternar ON/OFF; se hará una llamada al endpoint `/api/esp/zone`. A la derecha de cada switch hay un input de duración (segundos) con valor por defecto 300.</p>
+      <p class="muted">Presioná un switch para alternar ON/OFF; se hará una llamada al endpoint `/api/zone`. A la derecha de cada switch hay un input de duración (segundos) con valor por defecto 300.</p>
       <div style="margin-top:12px; display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;align-items:center;gap:10px">
           <button class="zone-switch" data-zone="1" data-state="off">Zona 1: OFF</button>
@@ -68,6 +68,31 @@
     </div>
 
     <pre id="out" class="card" style="min-height:60px">Salida...</pre>
+
+    <div class="card">
+      <h3>Configuración de Riego</h3>
+      <p class="muted">Edita los parámetros de riego: zonas, horarios y duración de riego.</p>
+      
+      <div style="margin-top:16px">
+        <h4>Zonas (GPIO pins)</h4>
+        <div id="zones-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+        <button id="add-zone-btn" style="background:#06b6d4;padding:8px 12px;font-size:0.9rem">+ Agregar Zona</button>
+      </div>
+
+      <div style="margin-top:20px">
+        <h4>Horarios Programados</h4>
+        <div id="schedules-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px"></div>
+        <button id="add-schedule-btn" style="background:#06b6d4;padding:8px 12px;font-size:0.9rem">+ Agregar Horario</button>
+      </div>
+
+      <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="load-config-btn" style="background:#06b6d4">Cargar Configuración</button>
+        <button id="save-config-btn" style="background:#06b6d4">Guardar Configuración</button>
+        <button id="reset-config-btn" style="background:#6b3a3a">Limpiar Campos</button>
+      </div>
+
+      <div id="config-status" class="muted" style="margin-top:12px;min-height:20px"></div>
+    </div>
   </div>
 
   <script src="/static/control_panel.js" defer></script>

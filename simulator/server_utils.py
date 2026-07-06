@@ -1,21 +1,21 @@
-import gc
+from __future__ import annotations
+
 import os
 import time
 
 try:
     import ujson as json
-except Exception:  # pragma: no cover - simulator fallback
+except Exception:  # pragma: no cover
     import json  # type: ignore
 
 try:
     import traceback
-except Exception:  # pragma: no cover - MicroPython fallback
+except Exception:  # pragma: no cover
     traceback = None
 
 from time_utils import now_local
 
 LOG_FILE = "log.txt"
-LAST_LOG_FILE = "last_log.txt"
 MAX_LINES = 200
 
 
@@ -62,7 +62,7 @@ def _err_payload(e):
         return {"error": "unknown"}
 
 
-def _traceback_text(exc=None):
+def _traceback_text(exc: BaseException | None = None) -> str:
     if exc is None:
         return ""
     if traceback is not None and hasattr(traceback, "format_exception"):
@@ -81,34 +81,24 @@ def _traceback_text(exc=None):
         return repr(exc)
 
 
-def _write_to_log_file(line: str):
+def _write_to_log_file(line):
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
-    with open(LAST_LOG_FILE, "a") as f:
-        f.write(line + "\n")
 
 
-def _truncate_log_if_needed(path):
+def _truncate_log_if_needed():
     try:
-        if os.stat(path)[6] <= 8192:
+        if os.stat(LOG_FILE)[6] <= 8192:
             return
     except OSError:
         return
 
     try:
-        with open(path, "r") as f:
+        with open(LOG_FILE, "r") as f:
             lines = f.readlines()
-        with open(path, "w") as f:
+        with open(LOG_FILE, "w") as f:
             for l in lines[-MAX_LINES:]:
                 f.write(l)
-    except Exception:
-        pass
-
-
-def start_new_boot_log():
-    try:
-        with open(LAST_LOG_FILE, "w"):
-            pass
     except Exception:
         pass
 
@@ -119,8 +109,7 @@ def log(msg, ts=None):
     print(line)
     try:
         _write_to_log_file(line)
-        _truncate_log_if_needed(LOG_FILE)
-        _truncate_log_if_needed(LAST_LOG_FILE)
+        _truncate_log_if_needed()
     except Exception:
         pass
     return line

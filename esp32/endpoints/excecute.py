@@ -1,4 +1,4 @@
-from server_utils import send_response, parse_query, log
+from server_utils import log, log_exception, parse_query, send_response
 from machine import Pin
 import ujson as json
 
@@ -95,8 +95,8 @@ async def handle(writer, query=""):
         send_response(writer, {"result": result, "error": None})
         
     except SyntaxError as e:
-        log(f"Syntax error: {e}")
+        log_exception("Syntax error in execute", e)
         send_response(writer, {"result": None, "error": f"Syntax error: {str(e)}"}, "400 Bad Request")
     except Exception as e:
-        log(f"Execution error: {e}")
+        log_exception("Execution error in execute", e)
         send_response(writer, {"result": None, "error": f"Error: {str(e)}"}, "400 Bad Request")

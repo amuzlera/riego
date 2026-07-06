@@ -1,116 +1,34 @@
-import os
-from urllib.parse import urlencode
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+from fastapi import Body, FastAPI, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-import httpx
-from fastapi import FastAPI, Query, Body, Request, UploadFile
-from .logs_api import router as logs_router
-from .wheater import weather_router
 
+from app.boot_log_archive import capture_boot_log, watch_boot_logs
+from app.actions import get_actions_router, get_config_router
+from app.handlers import proxy_get, proxy_post
+from app.logs_api import router as logs_router
+from app.riego_config_api import router as riego_config_router
+from app.wheater import weather_router
 
-# === Config del ESP (igual que antes) ===
-ESP_HOST = os.getenv("ESP_HOST", "http://192.168.0.50")
-ESP_USER = os.getenv("ESP_USER", "admin")
-ESP_PASS = os.getenv("ESP_PASS", "1234")
-ESP_TIMEOUT = float(os.getenv("ESP_TIMEOUT", "5"))
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="Riego UI + ESP Proxy")
-app.include_router(logs_router, prefix="/api")  # <- esto pone /api/logs/tail
+app = FastAPI(title="Riego UI")
+app.include_router(logs_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
-
-# ---------- helpers ----------
-
-
-async def _esp_get(path: str, params: dict | None = None):
-    url = f"{ESP_HOST}{path}"
-    if params:
-        url += f"?{urlencode(params)}"
-    auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
-    async with httpx.AsyncClient(timeout=ESP_TIMEOUT) as client:
-        r = await client.get(url, auth=auth)
-    return r
+app.include_router(get_actions_router, prefix="/api")
+app.include_router(get_config_router, prefix="/api")
+app.include_router(riego_config_router, prefix="/api")
 
 
-async def _esp_post(path: str, params: dict | None = None, data: str = ""):
-    url = f"{ESP_HOST}{path}"
-    if params:
-        url += f"?{urlencode(params)}"
-    auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
-    # El firmware que compartiste lee el body como texto (no JSON)
-    headers = {"Content-Type": "text/plain; charset=utf-8"}
-    async with httpx.AsyncClient(timeout=ESP_TIMEOUT) as client:
-        r = await client.post(url, auth=auth, content=data.encode("utf-8"), headers=headers)
-    return r
-
-
-def _as_response(r: httpx.Response):
-    # Tu firmware devuelve JSON en todas las rutas -> lo pasamos tal cual
-    ctype = r.headers.get("content-type", "")
-    if "application/json" in ctype:
-        try:
-            return JSONResponse(status_code=r.status_code, content=r.json())
-        except Exception:
-            return PlainTextResponse(status_code=r.status_code, content=r.text)
-    return PlainTextResponse(status_code=r.status_code, content=r.text)
-
-# ---------- API del ESP: endpoints específicos ----------
-
-
-@app.get("/api/esp/ls")
-async def esp_ls():
-    """
-    GET {ESP_HOST}/ls
-    Devuelve {"files": [...]} según tu firmware.
-    """
-    try:
-        r = await _esp_get("/ls")
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
-
-@app.get("/api/esp/cat")
-async def esp_cat(file: str = Query(..., description="Nombre de archivo")):
-    """
-    GET {ESP_HOST}/cat?file=<nombre>
-    Devuelve {"file": "...", "content": "..."} o error JSON.
-    """
-    try:
-        r = await _esp_get("/cat", {"file": file})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
-
-@app.post("/upload")
-async def upload_file(data: UploadFile):
-    filename = data.filename
-    content = data.content
-    # guardar en disco, por ej:
-    with open(filename, "w") as f:
-        f.write(content)
-    return {"status": "Archivo guardado", "file": filename}
-
-
-@app.post("/api/esp/rm")
-async def esp_rm(file: str = Query(..., description="Nombre de archivo a eliminar")):
-    """
-    Tu firmware acepta /rm (sin restricción de método).
-    Usamos POST desde la API para acciones destructivas.
-    Internamente hace GET {ESP_HOST}/rm?file=<nombre>.
-    """
-    try:
-        # podríamos usar GET directo porque tu firmware lo maneja así
-        r = await _esp_get("/rm", {"file": file})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+@app.on_event("startup")
+async def capture_esp32_boot_log_on_startup():
+    await capture_boot_log()
+    asyncio.create_task(watch_boot_logs())
 
 
 @app.api_route("/api/esp", methods=["GET", "POST"])
@@ -118,45 +36,52 @@ async def esp_exec(
     request: Request,
     cmd: str = Query(..., description="Comando para el ESP32"),
     filename: str | None = Query(None, description="Nombre de archivo"),
-    body: str = Body("", media_type="text/plain")
+    body: str = Body("", media_type="text/plain"),
 ):
-    try:
-        if request.method == "GET":
-            # Ej: /api/esp?cmd=ls
-            r = await _esp_get(f"/{cmd}", {"file": filename} if filename else None)
-        else:
-            # Ej: /api/esp?cmd=upload&filename=main.py
-            r = await _esp_post(f"/{cmd}", {"filename": filename} if filename else None, data=body)
+    if request.method == "GET":
+        params = {"filename": filename} if filename else None
+        return await proxy_get(f"/{cmd}", params)
 
-        return _as_response(r)
-
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+    params = {"filename": filename} if filename else None
+    return await proxy_post(f"/{cmd}", params, data=body)
 
 
+@app.get("/api/esp/ls")
+async def esp_ls(filename: str | None = Query(None, description="Carpeta opcional")):
+    return await proxy_get("/ls", {"filename": filename} if filename else None)
 
-@app.post("/api/esp/zone")
-async def esp_zone(request: Request, body: str = Body("", media_type="text/plain"),
-                   zone: str | None = Query(None), action: str | None = Query(None),
-                   duration: int | None = Query(None)):
-    """
-    Proxy para encender/apagar zonas del ESP.
-    Formatos aceptados:
-      - Body corto: "zone1 on 3600" (zona, action, duration opcional)
-      - Query params: zone=<zona>, action=on|off, duration=<s>
 
-    Reenvía a {ESP_HOST}/zone?zone=...&action=...&duration=...
-    """
-    # Priorizar query params si están presentes
+@app.get("/api/esp/cat")
+async def esp_cat(
+    filename: str | None = Query(None, description="Nombre de archivo"),
+    file: str | None = Query(None, description="Compatibilidad legacy"),
+):
+    target = filename or file
+    return await proxy_get("/cat", {"filename": target} if target else None)
+
+
+@app.post("/api/esp/rm")
+async def esp_rm(
+    filename: str | None = Query(None, description="Nombre de archivo a eliminar"),
+    file: str | None = Query(None, description="Compatibilidad legacy"),
+):
+    target = filename or file
+    return await proxy_get("/rm", {"filename": target} if target else None)
+
+
+@app.post("/api/zone")
+async def api_zone(
+    request: Request,
+    body: str = Body("", media_type="text/plain"),
+    zone: str | None = Query(None),
+    action: str | None = Query(None),
+    duration: int | None = Query(None),
+):
     z = zone
     a = action
     d = duration
 
-    # Si no vienen en query, intentar parsear el body corto
     if not z and body:
-        # body puede venir con newline; tomamos la primera linea
         first = body.splitlines()[0].strip()
         if first:
             parts = first.split()
@@ -178,53 +103,27 @@ async def esp_zone(request: Request, body: str = Body("", media_type="text/plain
         params["action"] = a
     if d is not None:
         params["duration"] = str(d)
-
-    try:
-        # Usamos GET porque el firmware acepta GET para /zone (como otros endpoints)
-        r = await _esp_get("/zone", params)
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+    return await proxy_get("/zone", params)
 
 
-@app.get("/api/esp/execute")
-async def esp_execute(code: str = Query(..., description="Código Python a ejecutar en ESP32")):
-    """
-    Ejecuta código Python en el ESP32.
-    
-    Ejemplos:
-      - /api/esp/execute?code=pin=Pin(2,Pin.IN)%0Aprint(pin.value())
-      - /api/esp/execute?code=print(machine.freq())
-    
-    Retorna: {"result": "salida", "error": null}
-    """
-    try:
-        r = await _esp_get("/execute", {"code": code})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+@app.get("/api/execute")
+async def api_execute(code: str = Query(..., description="Código a ejecutar")):
+    return await proxy_get("/execute", {"code": code})
 
-# ---------- Frontend ----------
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/api/config/mode")
+async def get_mode():
+    return JSONResponse(content={"mode": "local-only"})
 
 
 @app.get("/")
 def root():
-    return FileResponse("static/index.html")
-
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/control_panel")
 def control_panel():
-    """Sirve la página Control Panel (static/control_panel.html)"""
-    return FileResponse("static/control_panel.html")
-# python -m uvicorn app.main:app --reload
-# python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-## On EC2 instance:
-# ssh -i "am-server-keypair.pem" ubuntu@ec2-56-124-102-170.sa-east-1.compute.amazonaws.com
-# http://56.124.102.170:8000
+    return FileResponse(STATIC_DIR / "control_panel.html")

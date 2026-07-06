@@ -17,7 +17,9 @@ async def handle(writer, query):
         send_response(writer, {"error": "Falta parametro filename"}, "400 Bad Request")
         return
 
-    check_file_exist(filename, writer)
+    if not check_file_exist(filename, writer):
+        return
+
     with open(filename) as f:
         content = f.read()
     send_response(writer, {"file": filename, "content": content})

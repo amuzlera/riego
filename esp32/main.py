@@ -1,89 +1,90 @@
+import io
 import sys
+
 import uasyncio as asyncio
-import network, config, machine, time
-from machine import WDT
-from server_utils import log
-from server import start_server
-from task import riego_scheduler_loop
-from time_utils import sync_time_from_ntp
+
+LAST_LOG_FILE = "last_log.txt"
+BOOT_LOG_FILE = "log.txt"
 
 
-async def safe_task(name, coro):
+def _write_boot_traceback(exc: BaseException):
     try:
-        await coro
-    except Exception as e:
-        import io
-        # Capturar el traceback en un buffer
-        output = io.StringIO()
-        sys.print_exception(e, output)
-        tb_str = output.getvalue()
-        output.close()
-        
-        log(f"Tarea '{name}' falló: {e}")
-        log(f"Traceback:\n{tb_str}")
+        import traceback
+
+        text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    except Exception:
+        try:
+            buf = io.StringIO()
+            sys.print_exception(exc, buf)
+            text = buf.getvalue()
+        except Exception:
+            text = repr(exc)
+
+    try:
+        for path in (BOOT_LOG_FILE, LAST_LOG_FILE):
+            with open(path, "a") as f:
+                f.write("BOOT ERROR\n")
+                for line in text.splitlines():
+                    f.write(line + "\n")
+    except Exception:
+        pass
 
 
+async def _serve_only():
+    from server import start_server
 
-wdt = WDT(timeout=20000)
-last_ok = time.time()
-
-def heartbeat():
-    global last_ok
-    last_ok = time.time()
-
-async def healthcheck():
-    global last_ok
+    await start_server()
     while True:
-        await asyncio.sleep(5)
-        if time.time() - last_ok > 10:
-            log("Healthcheck falló, reseteando...")
-            machine.reset()
-        wdt.feed()
-
-async def connect_wifi():
-    sta_if = network.WLAN(network.STA_IF)
-    if not sta_if.isconnected():
-        log("Conectando a WiFi...")
-        sta_if.active(True)
-        sta_if.connect(config.WIFI_SSID, config.WIFI_PASS)
-
-        while not sta_if.isconnected():
-            await asyncio.sleep(0.5)
-
-    ip = sta_if.ifconfig()[0]
-    log(f"Conectado a WiFi. IP: {ip}")
-    heartbeat()
-    return ip
-
-async def main():
-    log("Iniciando sistema")
-
-    await connect_wifi()
-
-    log("Sincronizando hora con NTP...")
-    t = sync_time_from_ntp()
-    log(f"Hora actual: {t}")
-    heartbeat()
-
-    asyncio.create_task(safe_task("server", start_server()))
-    asyncio.create_task(safe_task("riego_scheduler", riego_scheduler_loop(poll_s=5)))
-    asyncio.create_task(safe_task("healthcheck", healthcheck()))
-
-    while True:
-        heartbeat()
         await asyncio.sleep(1)
 
-print("RUNNING MAIN")
-asyncio.run(main())
 
-'''
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/ls.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/cat.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/upload.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/rm.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/__init__.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/server.py :
-mpremote connect /dev/ttyUSB0 fs cp esp32/server_utils.py :
-mpremote connect /dev/ttyUSB0 fs cp esp32/main.py :
-mpremote connect /dev/ttyUSB0 fs cp esp32/task.py :
-'''
+async def _main_loop():
+    from server import start_server
+    from server_utils import log, log_exception
+    from task import riego_scheduler_loop
+
+    log("Iniciando sistema")
+    await start_server()
+
+    try:
+        from time_utils import sync_time_from_ntp
+
+        t = sync_time_from_ntp()
+        log(f"Hora actual: {t}")
+    except Exception as e:
+        log_exception("NTP sync failed", e)
+
+    asyncio.create_task(riego_scheduler_loop(poll_s=5))
+
+    while True:
+        await asyncio.sleep(1)
+
+
+async def _safe_start():
+    while True:
+        try:
+            await _main_loop()
+        except Exception as e:
+            _write_boot_traceback(e)
+            try:
+                from server_utils import log_exception
+
+                log_exception("main loop failed", e)
+            except Exception:
+                pass
+            await asyncio.sleep(5)
+
+
+def _boot():
+    try:
+        asyncio.run(_safe_start())
+    except Exception as e:
+        _write_boot_traceback(e)
+        try:
+            asyncio.run(_serve_only())
+        except Exception as inner:
+            _write_boot_traceback(inner)
+
+
+print("RUNNING MAIN")
+_boot()

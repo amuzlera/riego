@@ -1,7 +1,7 @@
+import uasyncio as asyncio
 import ujson as json
 from boot import CONFIG_PATH
-import uasyncio as asyncio
-from server_utils import send_response, parse_query, log
+from server_utils import log, log_exception, parse_query, send_response
 from machine import Pin
 
 
@@ -16,6 +16,50 @@ def load_zones_map():
         log(f"No se pudo leer {CONFIG_PATH}: {e}")
         return {}
 
+_PINS = {}
+
+async def change_zone(zone, action="on", duration=None):
+    action = action.lower()
+
+    if zone.isdigit():
+        zone = f"zona{zone}"
+
+    zones_map = load_zones_map()
+    if zone not in zones_map:
+        raise ValueError(f"Zona '{zone}' no encontrada")
+
+    try:
+        pin_num = int(zones_map[zone])
+    except Exception as e:
+        raise ValueError(f"Pin inválido para {zone}: {e}")
+
+    if pin_num not in _PINS:
+        _PINS[pin_num] = Pin(pin_num, Pin.OUT, value=1)
+
+    p = _PINS[pin_num]
+
+    if action == "on":
+        p.value(0)
+        log(f"Zona {zone} (pin {pin_num}) encendida")
+
+        if duration and duration > 0:
+            async def _delayed_off():
+                try:
+                    await asyncio.sleep(duration)
+                    p.value(1)
+                    log(f"Zona {zone} (pin {pin_num}) apagada por timeout")
+                except Exception as e:
+                    log_exception("delayed off failed for {}".format(zone), e)
+
+            asyncio.create_task(_delayed_off())
+
+    elif action == "off":
+        p.value(1)
+        log(f"Zona {zone} (pin {pin_num}) apagada")
+
+    else:
+        raise ValueError(f"Action inválida: {action}")
+
 
 async def handle(writer, query=""):
     """Parametros (query):
@@ -26,74 +70,32 @@ async def handle(writer, query=""):
     params = parse_query(query)
     zone = params.get("zone")
     action = params.get("action")
+    
+    if not zone:
+        send_response(writer, {"error": "Falta parametro zone"}, "400 Bad Request")
+        return
+
     if isinstance(action, str):
         action = action.lower()
     else:
         action = "on"
     duration = params.get("duration")
 
-    if not zone:
-        send_response(writer, {"error": "Falta parametro zone"}, "400 Bad Request")
-        return
-
-    # Permitir que pasen números simples (1..N) y convertir a zonaX
-    if zone.isdigit():
-        zone = f"zona{zone}"
-
-    zones_map = load_zones_map()
-    if zone not in zones_map:
-        send_response(writer, {"error": f"Zona '{zone}' no encontrada en config"}, "404 Not Found")
-        return
+    try:
+        duration = int(duration) if duration is not None else None
+    except Exception:
+        duration = None
 
     try:
-        pin_num = int(zones_map[zone])
-    except Exception as e:
-        send_response(writer, {"error": f"Pin inválido para {zone}: {e}"}, "500 Internal Server Error")
+        async def _run_change_zone():
+            try:
+                await change_zone(zone, action, duration)
+            except Exception as e:
+                log_exception(f"change_zone task failed for {zone}", e)
+
+        asyncio.create_task(_run_change_zone())
+        send_response(writer, {"status": "ok", "zone": zone, "action": action, "duration": duration})
         return
-
-    try:
-        p = Pin(pin_num, Pin.OUT, value=1)
     except Exception as e:
-        send_response(writer, {"error": f"No se pudo inicializar Pin {pin_num}: {e}"}, "500 Internal Server Error")
+        send_response(writer, {"error": f"No se pudo encender {zone}: {e}"}, "500 Internal Server Error")
         return
-
-    if action == "on":
-        try:
-            p.value(0)
-            log(f"Endpoint: Zona {zone} (pin {pin_num}) encendida via /zone")
-            if duration:
-                # intenta parsear a entero
-                try:
-                    dur = int(duration)
-                except Exception:
-                    dur = None
-                if dur and dur > 0:
-                    # programar apagado sin bloquear
-                    async def _delayed_off(pin, name, pin_n, s):
-                        await asyncio.sleep(s)
-                        try:
-                            pin.value(1)
-                            log(f"Endpoint: Zona {name} (pin {pin_n}) apagada por timeout")
-                        except Exception as e:
-                            log(f"Error apagando zona {name}: {e}")
-
-                    asyncio.create_task(_delayed_off(p, zone, pin_num, dur))
-
-            send_response(writer, {"status": "ok", "zone": zone, "action": "on", "pin": pin_num, "duration": duration})
-            return
-        except Exception as e:
-            send_response(writer, {"error": f"No se pudo encender {zone}: {e}"}, "500 Internal Server Error")
-            return
-
-    elif action == "off":
-        try:
-            p.value(1)
-            log(f"Endpoint: Zona {zone} (pin {pin_num}) apagada via /zone")
-            send_response(writer, {"status": "ok", "zone": zone, "action": "off", "pin": pin_num})
-            return
-        except Exception as e:
-            send_response(writer, {"error": f"No se pudo apagar {zone}: {e}"}, "500 Internal Server Error")
-            return
-
-    else:
-        send_response(writer, {"error": f"Action inválida: {action}"}, "400 Bad Request")
