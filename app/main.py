@@ -111,6 +111,16 @@ async def api_execute(code: str = Query(..., description="Código a ejecutar")):
     return await proxy_get("/execute", {"code": code})
 
 
+@app.get("/api/firmware/status")
+async def firmware_status():
+    return await proxy_get("/firmware/status")
+
+
+@app.post("/api/firmware/slot")
+async def firmware_slot(slot: str = Query(..., description="Slot a activar: dev o stable")):
+    return await proxy_post("/firmware/slot", {"slot": slot})
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 

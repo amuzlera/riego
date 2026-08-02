@@ -26,6 +26,26 @@ If you want to point the UI at a real ESP32 instead of the simulator:
 ./prod.sh --esp-host http://<esp32-ip>
 ```
 
+For the USB flashing steps, see [USB-FLASH.md](/home/amuzlera/project/riegov2/riego/USB-FLASH.md).
+
+## ESP32 failover
+
+The ESP32 firmware now has two slots:
+
+- `dev`: the mutable image you upload over WiFi
+- `stable`: the fallback snapshot
+
+The bootloader keeps a small boot-state file and switches back to `stable` after repeated failed boots from `dev`.
+The firmware also runs a watchdog/heartbeat check, so a stalled main loop or scheduler can force a reset instead of hanging forever.
+
+Useful endpoints:
+
+- `GET /api/firmware/status`
+- `POST /api/firmware/slot?slot=dev`
+- `POST /api/firmware/slot?slot=stable`
+
+To upload code into the fallback slot, send `slot=stable` to the ESP32 `/upload` endpoint. The root `boot.py` and `boot_manager.py` files are reserved and cannot be overwritten over WiFi.
+
 ## Manual simulator run
 
 ```bash

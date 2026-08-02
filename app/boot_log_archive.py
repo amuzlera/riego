@@ -12,6 +12,7 @@ from .handlers import ESP_HOST, ESP_PASS, ESP_TIMEOUT, ESP_USER
 
 BASE_DIR = Path(__file__).resolve().parent
 ARCHIVE_DIR = BASE_DIR / "esp32_boot_logs"
+LAST_LOG_FILE = ARCHIVE_DIR / "last_log.txt"
 INDEX_FILE = ARCHIVE_DIR / "index.jsonl"
 _last_archived_sha1: str | None = None
 
@@ -44,6 +45,7 @@ def _archive_content(content: str, filename: str = "last_log.txt") -> Path:
     sha1 = _sha1(content)
     out_path = ARCHIVE_DIR / f"{stamp}.txt"
     out_path.write_text(content, encoding="utf-8")
+    LAST_LOG_FILE.write_text(content, encoding="utf-8")
 
     record = {
         "timestamp": stamp,
@@ -58,7 +60,7 @@ def _archive_content(content: str, filename: str = "last_log.txt") -> Path:
     return out_path
 
 
-async def capture_boot_log(filename: str = "last_log.txt") -> Path | None:
+async def capture_boot_log(filename: str = "log.txt") -> Path | None:
     url = f"{ESP_HOST}/cat"
     params = {"filename": filename}
     auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
@@ -86,6 +88,8 @@ async def capture_boot_log(filename: str = "last_log.txt") -> Path | None:
         _last_archived_sha1 = _load_last_sha1()
 
     if sha1 == _last_archived_sha1:
+        LAST_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_LOG_FILE.write_text(content, encoding="utf-8")
         return None
 
     out_path = _archive_content(content, filename=filename)
