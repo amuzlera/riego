@@ -49,7 +49,7 @@ async def main():
     program_scheduler = WeeklyProgramScheduler(
         device,
         storage_path="programs.json",
-        tz_offset_seconds=int(getattr(config, "TZ_OFFSET_SECONDS", 10800)),
+        tz_offset_seconds=int(getattr(config, "TZ_OFFSET_SECONDS", -10800)),
     )
 
     wlan = await connect_wifi()
@@ -60,7 +60,7 @@ async def main():
     print("Syncing time from NTP...")
     sync_time_from_ntp(
         host=getattr(config, "NTP_HOST", "pool.ntp.org"),
-        tz_offset_seconds=int(getattr(config, "TZ_OFFSET_SECONDS", 10800)),
+        tz_offset_seconds=int(getattr(config, "TZ_OFFSET_SECONDS", -10800)),
     )
 
     scheduler.restore_pending_jobs()

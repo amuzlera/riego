@@ -259,8 +259,8 @@ async def handle_client(reader, writer, device, action_registry, scheduler, prog
             payload = {
                 "ok": True,
                 "device": getattr(config, "DEVICE_NAME", "esp32"),
-                "time": format_local_time(getattr(config, "TZ_OFFSET_SECONDS", 10800)),
-                "timezone_offset_seconds": int(getattr(config, "TZ_OFFSET_SECONDS", 10800)),
+                "time": format_local_time(getattr(config, "TZ_OFFSET_SECONDS", -10800)),
+                "timezone_offset_seconds": int(getattr(config, "TZ_OFFSET_SECONDS", -10800)),
                 "sensor": sensor_payload,
                 "temperature": temperature,
                 "humidity": humidity,

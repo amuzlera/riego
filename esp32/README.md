@@ -57,6 +57,8 @@ Copiar `config.py.example` como `config.py` y ajustar:
 - `PINS`
 - `SENSORS`
 
+Para Buenos Aires, `TZ_OFFSET_SECONDS` debe ser `-10800`.
+
 El sensor `temp_humedad` expone temperatura y humedad usando `DHT11` en el pin `4`.
 
 `GET /environment` devuelve temperatura, humedad y hora local del ESP32 en una sola respuesta.

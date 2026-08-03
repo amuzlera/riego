@@ -7,7 +7,7 @@ DEVICE_NAME = "riego-esp32"
 HTTP_PORT = 80
 WIFI_TIMEOUT_SECONDS = 15
 NTP_HOST = "pool.ntp.org"
-TZ_OFFSET_SECONDS = 10800
+TZ_OFFSET_SECONDS = -10800
 
 # IP fija que usaba el proyecto viejo.
 # Formato: (ip, netmask, gateway, dns)
@@ -35,4 +35,3 @@ SENSORS = {
         "pin": 4,
     }
 }
-

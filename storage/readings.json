@@ -1,0 +1,258 @@
+{
+  "esp32-lab": {
+    "temp_humedad": [
+      {
+        "temperature": 13,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 13,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T17:27:58.078303+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 19,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 19,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T17:37:58.646834+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T17:38:06.736191+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T17:48:07.214330+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T17:58:07.712044+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T18:08:08.274116+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T18:18:08.762879+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T18:28:09.242941+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T18:38:09.717643+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T18:48:10.294749+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T18:58:10.775847+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T19:08:11.256178+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 16,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 16,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T19:18:11.737860+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 15,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 15,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T19:28:12.221945+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 17,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 17,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T19:38:12.797617+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 15,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 15,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T19:48:13.280519+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 15,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 15,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T19:58:13.769793+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      },
+      {
+        "temperature": 15,
+        "humidity": 95,
+        "data": {
+          "kind": "dht11",
+          "temperature": 15,
+          "pin": 4,
+          "humidity": 95,
+          "name": "temp_humedad"
+        },
+        "recorded_at": "2026-08-03T20:00:21.551757+00:00",
+        "device": "esp32-lab",
+        "sensor": "temp_humedad"
+      }
+    ]
+  }
+}

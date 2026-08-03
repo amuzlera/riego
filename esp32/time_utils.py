@@ -9,7 +9,7 @@ except ImportError:
     time = None
 
 
-DEFAULT_TZ_OFFSET_SECONDS = 10800
+DEFAULT_TZ_OFFSET_SECONDS = -10800
 
 
 def now_local(tz_offset_seconds=DEFAULT_TZ_OFFSET_SECONDS):

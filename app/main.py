@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -18,12 +20,16 @@ from .schemas import (
     ProgramUpdate,
     RunForRequest,
 )
-from .storage import store
+from .storage import reading_store, store
 
 
 app = FastAPI(title="Riego v3 Backend")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+SENSOR_POLL_INTERVAL_SECONDS = 600
+SENSOR_POLL_NAME = "temp_humedad"
+
+_sensor_poll_task: asyncio.Task[None] | None = None
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -69,6 +75,101 @@ def _model_payload(model):
     if dump is not None:
         return dump()
     return model.dict()
+
+
+def _extract_json_payload(response: httpx.Response) -> dict | None:
+    content_type = response.headers.get("content-type", "")
+    if "application/json" not in content_type:
+        return None
+
+    try:
+        payload = response.json()
+    except Exception:
+        return None
+
+    return payload if isinstance(payload, dict) else None
+
+
+def _record_sensor_reading(device: dict, sensor_name: str, response: httpx.Response) -> dict | None:
+    payload = _extract_json_payload(response)
+    if payload is None:
+        return None
+
+    sensor_payload = payload.get("sensor")
+    if isinstance(sensor_payload, dict):
+        data = dict(sensor_payload)
+    else:
+        data = dict(payload)
+
+    recorded_at = datetime.now().astimezone()
+    reading = {
+        "temperature": payload.get("temperature", data.get("temperature")),
+        "humidity": payload.get("humidity", data.get("humidity")),
+        "data": data,
+        "recorded_at": recorded_at.isoformat(),
+    }
+
+    stored = reading_store.record(device["name"], sensor_name, reading)
+    return stored
+
+
+async def _poll_device_sensor(device: dict, sensor_name: str = SENSOR_POLL_NAME) -> None:
+    try:
+        response = await Esp32Client(device).get_sensor(sensor_name)
+    except httpx.RequestError:
+        return
+
+    if response.is_error:
+        return
+
+    _record_sensor_reading(device, sensor_name, response)
+
+
+async def _sensor_poll_loop() -> None:
+    while True:
+        try:
+            await asyncio.sleep(SENSOR_POLL_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            break
+
+        devices = [device for device in store.list_devices() if device.get("enabled", True)]
+        for device in devices:
+            try:
+                await _poll_device_sensor(device)
+            except Exception:
+                continue
+
+
+async def _poll_enabled_devices_once() -> None:
+        devices = [device for device in store.list_devices() if device.get("enabled", True)]
+        for device in devices:
+            try:
+                await _poll_device_sensor(device)
+            except Exception:
+                continue
+
+
+@app.on_event("startup")
+async def startup_sensor_polling() -> None:
+    global _sensor_poll_task
+    await _poll_enabled_devices_once()
+    if _sensor_poll_task is None or _sensor_poll_task.done():
+        _sensor_poll_task = asyncio.create_task(_sensor_poll_loop())
+
+
+@app.on_event("shutdown")
+async def shutdown_sensor_polling() -> None:
+    global _sensor_poll_task
+    if _sensor_poll_task is None:
+        return
+
+    _sensor_poll_task.cancel()
+    try:
+        await _sensor_poll_task
+    except asyncio.CancelledError:
+        pass
+    finally:
+        _sensor_poll_task = None
 
 
 @app.get("/")
@@ -230,6 +331,8 @@ async def device_sensor(name: str, sensor: str):
     device = _ensure_device(name)
     try:
         response = await Esp32Client(device).get_sensor(sensor)
+        if response.ok:
+            _record_sensor_reading(device, sensor, response)
         return _response_from_httpx(response)
     except httpx.RequestError as exc:
         return _offline_response(device, exc)
@@ -260,9 +363,28 @@ async def device_environment(name: str):
     device = _ensure_device(name)
     try:
         response = await Esp32Client(device).environment()
+        if response.ok:
+            payload = _extract_json_payload(response) or {}
+            sensor_payload = payload.get("sensor")
+            if isinstance(sensor_payload, dict):
+                recorded = {
+                    "temperature": payload.get("temperature", sensor_payload.get("temperature")),
+                    "humidity": payload.get("humidity", sensor_payload.get("humidity")),
+                    "data": sensor_payload,
+                }
+                reading_store.record(device["name"], "temp_humedad", recorded)
         return _response_from_httpx(response)
     except httpx.RequestError as exc:
         return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/readings/latest")
+async def device_latest_reading(name: str, sensor: str | None = None):
+    device = _ensure_device(name)
+    reading = reading_store.latest(device["name"], sensor)
+    if reading is None:
+        raise HTTPException(status_code=404, detail="reading_not_found")
+    return {"ok": True, "device": name, "reading": reading}
 
 
 @app.get("/devices/{name}/programs")
