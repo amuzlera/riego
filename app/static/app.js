@@ -396,6 +396,16 @@ function renderEnvironment(data) {
   els.envTime.textContent = data?.time || "-";
 }
 
+function formatLocalTimestamp(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
 function renderPins(pinsResponse) {
   const pins = pinsResponse?.pins || {};
   const entries = Object.entries(pins);
@@ -516,11 +526,16 @@ async function runForPin(pin, minutes) {
 async function loadEnvironment() {
   if (!state.deviceName) return;
 
-  setStatus(`Consultando sensor de ${state.deviceName}...`);
-  const data = await api(`/devices/${encodeURIComponent(state.deviceName)}/environment`);
-  renderEnvironment(data);
+  setStatus(`Consultando lectura local de ${state.deviceName}...`);
+  const data = await api(`/devices/${encodeURIComponent(state.deviceName)}/readings/latest?sensor=temp_humedad`);
+  const reading = data?.reading || {};
+  renderEnvironment({
+    temperature: reading.temperature,
+    humidity: reading.humidity,
+    time: formatLocalTimestamp(reading.recorded_at),
+  });
   log(data);
-  setStatus(`Ambiente actualizado en ${state.deviceName}`, "ok");
+  setStatus(`Lectura local actualizada en ${state.deviceName}`, "ok");
 }
 
 async function saveProgram(event) {

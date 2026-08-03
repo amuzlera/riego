@@ -15,6 +15,7 @@ Backend Python para correr en la PC y hablar con el ESP32 por HTTP.
 - `storage.py`: persistencia local de dispositivos
 - `schemas.py`: modelos de entrada
 - `devices.json.example`: plantilla de dispositivos
+- `readings.json`: historial local de lecturas del sensor
 
 ## Configuracion
 
@@ -22,8 +23,12 @@ Copiar `devices.json.example` como `devices.json` o definir:
 
 ```bash
 export RIEGO_DEVICES_FILE=/ruta/a/devices.json
+export RIEGO_READINGS_FILE=/ruta/a/readings.json
 export RIEGO_HTTP_TIMEOUT=5
 ```
+
+La app levanta un poller en segundo plano que consulta `temp_humedad` cada 10 minutos y guarda la última lectura localmente.
+En Docker, la persistencia queda en `riego/storage/devices.json` y `riego/storage/readings.json` del repo montados en `/data`.
 
 ## Ejecutar
 
@@ -94,4 +99,16 @@ Consultar estado:
 
 ```bash
 curl http://127.0.0.1:8000/devices/esp32-lab/status
+```
+
+Guardar una lectura local del sensor:
+
+```bash
+curl http://127.0.0.1:8000/devices/esp32-lab/sensors/temp_humedad
+```
+
+Consultar la ultima lectura guardada:
+
+```bash
+curl http://127.0.0.1:8000/devices/esp32-lab/readings/latest?sensor=temp_humedad
 ```

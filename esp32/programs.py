@@ -138,7 +138,7 @@ def _program_key(program_id, anchor_day, period_index, start, end):
 
 
 class WeeklyProgramScheduler:
-    def __init__(self, device, storage_path="programs.json", tz_offset_seconds=10800):
+    def __init__(self, device, storage_path="programs.json", tz_offset_seconds=-10800):
         self.device = device
         self.storage_path = storage_path
         self.tz_offset_seconds = int(tz_offset_seconds)

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -59,3 +60,12 @@ class ProgramUpdate(BaseModel):
 
 class ActionRequest(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SensorReading(BaseModel):
+    device: str
+    sensor: str
+    recorded_at: datetime
+    temperature: Optional[float] = None
+    humidity: Optional[float] = None
+    data: Dict[str, Any] = Field(default_factory=dict)
