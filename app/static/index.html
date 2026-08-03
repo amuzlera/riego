@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riego v3</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Riego v3</p>
+          <h1>Control simple del ESP32</h1>
+          <p class="lede">
+            Encendé o apagá los pines definidos en el firmware desde la PC.
+          </p>
+        </div>
+        <div class="status" id="connectionStatus">Cargando...</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Dispositivo</h2>
+            <p>Elegí el ESP32 a controlar.</p>
+          </div>
+          <select id="deviceSelect" class="select"></select>
+        </div>
+
+        <div class="meta">
+          <div>
+            <span class="meta-label">Base URL</span>
+            <strong id="deviceUrl">-</strong>
+          </div>
+          <div>
+            <span class="meta-label">Descripción</span>
+            <strong id="deviceDescription">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Ambiente</h2>
+            <p>Temperatura, humedad y hora leídos desde el ESP32.</p>
+          </div>
+          <button id="environmentButton" class="button ghost">Consultar sensor</button>
+        </div>
+        <div class="environment" id="environmentBox">
+          <div>
+            <span class="meta-label">Temperatura</span>
+            <strong id="envTemperature">-</strong>
+          </div>
+          <div>
+            <span class="meta-label">Humedad</span>
+            <strong id="envHumidity">-</strong>
+          </div>
+          <div>
+            <span class="meta-label">Hora</span>
+            <strong id="envTime">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Programador</h2>
+            <p>Creá programas semanales por pin, día y franjas horarias.</p>
+          </div>
+          <button id="programsRefreshButton" class="button ghost">Actualizar programas</button>
+        </div>
+
+        <div class="schedule-head">
+          <div>
+            <span class="meta-label">Cronograma</span>
+            <strong>Vista semanal</strong>
+          </div>
+          <p>Resumen agrupado por día para revisar rápido qué zonas quedan activas.</p>
+        </div>
+        <div id="programSchedule" class="schedule-grid"></div>
+
+        <form id="programForm" class="program-form">
+          <input type="hidden" id="programId" value="" />
+          <div class="program-row">
+            <label>
+              <span class="meta-label">Pin</span>
+              <select id="programPin" class="select"></select>
+            </label>
+            <label>
+              <span class="meta-label">Nombre</span>
+              <input id="programLabel" class="input" type="text" placeholder="Riego mañana" />
+            </label>
+            <label class="checkbox-field">
+              <span class="meta-label">Activo</span>
+              <input id="programEnabled" type="checkbox" checked />
+            </label>
+          </div>
+
+          <div class="program-row">
+            <div>
+              <span class="meta-label">Días</span>
+              <div id="programDays" class="days-row"></div>
+            </div>
+            <div class="periods-header">
+              <span class="meta-label">Franjas</span>
+              <button type="button" id="programAddPeriodButton" class="button ghost">Agregar franja</button>
+            </div>
+          </div>
+
+          <div id="programPeriods" class="periods-list"></div>
+
+          <div class="program-actions">
+            <button type="submit" class="button toggle">Guardar programa</button>
+            <button type="button" id="programCancelButton" class="button ghost">Limpiar</button>
+          </div>
+        </form>
+
+        <div id="programsGrid" class="programs-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Pines</h2>
+            <p>Los botones reflejan el estado actual del ESP32.</p>
+          </div>
+          <button id="refreshButton" class="button ghost">Actualizar</button>
+        </div>
+        <div id="pinsGrid" class="grid"></div>
+      </section>
+
+      <section class="panel small">
+        <div class="panel-head">
+          <div>
+            <h2>Respuesta</h2>
+            <p>Última acción enviada al backend.</p>
+          </div>
+        </div>
+        <pre id="logBox" class="log"></pre>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

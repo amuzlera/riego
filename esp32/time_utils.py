@@ -1,50 +1,62 @@
-import time
+try:
+    import ntptime
+except ImportError:
+    ntptime = None
 
-# Días de la semana en español
-SPANISH_WD = {
-    "lunes": 0, "martes": 1, "miercoles": 2, "miércoles": 2,
-    "jueves": 3, "viernes": 4, "sabado": 5, "sábado": 5,
-    "domingo": 6
-}
-
-DEFAULT_TZ = 13-3 * 3600 # UTC-3
-
-
-def now_local(tz_offset=DEFAULT_TZ):
-    """
-    Devuelve struct_time en hora local (corrigiendo con tz_offset).
-    """
-    return time.localtime(time.time() + tz_offset)
+try:
+    import time
+except ImportError:
+    time = None
 
 
-def parse_hhmm_to_minutes(hhmm):
-    h, m = hhmm.split(":")
-    return int(h) * 60 + int(m)
+DEFAULT_TZ_OFFSET_SECONDS = 10800
 
 
-def minutes_since_midnight(t):
-    """
-    t: struct_time o similar
-    """
-    return t[3] * 60 + t[4]
-
-
-def weekday_name_to_int(name: str):
-    return SPANISH_WD.get(str(name).strip().lower())
-
-
-# ----------------- FUTURO: sync de reloj -----------------
-
-def sync_time_from_ntp(host="pool.ntp.org", tz_offset=DEFAULT_TZ):
-    """
-    Intenta sincronizar el RTC del ESP32 usando NTP.
-    Requiere que la red esté conectada.
-    """
+def now_local(tz_offset_seconds=DEFAULT_TZ_OFFSET_SECONDS):
+    if time is None:
+        return None
     try:
-        import ntptime
+        return time.localtime(time.time() + int(tz_offset_seconds))
+    except Exception:
+        return time.localtime()
+
+
+def format_local_time(tz_offset_seconds=DEFAULT_TZ_OFFSET_SECONDS):
+    local_time = now_local(tz_offset_seconds)
+    if not local_time:
+        return None
+
+    try:
+        return "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}".format(
+            local_time[0],
+            local_time[1],
+            local_time[2],
+            local_time[3],
+            local_time[4],
+            local_time[5],
+        )
+    except Exception:
+        return None
+
+
+def local_time_is_plausible(tz_offset_seconds=DEFAULT_TZ_OFFSET_SECONDS, minimum_year=2024):
+    local_time = now_local(tz_offset_seconds)
+    if not local_time:
+        return False
+    try:
+        return int(local_time[0]) >= int(minimum_year)
+    except Exception:
+        return False
+
+
+def sync_time_from_ntp(host="pool.ntp.org", tz_offset_seconds=DEFAULT_TZ_OFFSET_SECONDS):
+    if ntptime is None or time is None:
+        return None
+
+    try:
         ntptime.host = host
-        ntptime.settime()  # ajusta RTC en UTC
-        return now_local(tz_offset)
-    except Exception as e:
-        print("No se pudo sincronizar NTP:", e)
-        return now_local(tz_offset)
+        ntptime.settime()
+        return now_local(tz_offset_seconds)
+    except Exception as exc:
+        print("No se pudo sincronizar NTP: {}".format(exc))
+        return now_local(tz_offset_seconds)

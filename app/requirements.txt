@@ -1,6 +1,5 @@
 fastapi
-requests
-uvicorn
+uvicorn[standard]
 httpx
-python-multipart
-openmeteo_sdk
+pydantic
+

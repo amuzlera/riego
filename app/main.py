@@ -1,230 +1,325 @@
-import os
-from urllib.parse import urlencode
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
+from __future__ import annotations
+
+from pathlib import Path
+
 import httpx
-from fastapi import FastAPI, Query, Body, Request, UploadFile
-from .logs_api import router as logs_router
-from .wheater import weather_router
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from .esp32_client import Esp32Client
+from .schemas import (
+    ActionRequest,
+    DeviceCreate,
+    DeviceUpdate,
+    ExecuteRequest,
+    PinSetRequest,
+    ProgramCreate,
+    ProgramUpdate,
+    RunForRequest,
+)
+from .storage import store
 
 
-# === Config del ESP (igual que antes) ===
-ESP_HOST = os.getenv("ESP_HOST", "http://192.168.0.50")
-ESP_USER = os.getenv("ESP_USER", "admin")
-ESP_PASS = os.getenv("ESP_PASS", "1234")
-ESP_TIMEOUT = float(os.getenv("ESP_TIMEOUT", "5"))
+app = FastAPI(title="Riego v3 Backend")
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="Riego UI + ESP Proxy")
-app.include_router(logs_router, prefix="/api")  # <- esto pone /api/logs/tail
-app.include_router(weather_router, prefix="/api")
-
-# ---------- helpers ----------
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-async def _esp_get(path: str, params: dict | None = None):
-    url = f"{ESP_HOST}{path}"
-    if params:
-        url += f"?{urlencode(params)}"
-    auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
-    async with httpx.AsyncClient(timeout=ESP_TIMEOUT) as client:
-        r = await client.get(url, auth=auth)
-    return r
+def _ensure_device(name: str) -> dict:
+    device = store.get_device(name)
+    if not device:
+        raise HTTPException(status_code=404, detail="device_not_found")
+    if not device.get("enabled", True):
+        raise HTTPException(status_code=409, detail="device_disabled")
+    return device
 
 
-async def _esp_post(path: str, params: dict | None = None, data: str = ""):
-    url = f"{ESP_HOST}{path}"
-    if params:
-        url += f"?{urlencode(params)}"
-    auth = httpx.BasicAuth(ESP_USER, ESP_PASS)
-    # El firmware que compartiste lee el body como texto (no JSON)
-    headers = {"Content-Type": "text/plain; charset=utf-8"}
-    async with httpx.AsyncClient(timeout=ESP_TIMEOUT) as client:
-        r = await client.post(url, auth=auth, content=data.encode("utf-8"), headers=headers)
-    return r
-
-
-def _as_response(r: httpx.Response):
-    # Tu firmware devuelve JSON en todas las rutas -> lo pasamos tal cual
-    ctype = r.headers.get("content-type", "")
-    if "application/json" in ctype:
+def _response_from_httpx(response) -> JSONResponse:
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type:
         try:
-            return JSONResponse(status_code=r.status_code, content=r.json())
+            return JSONResponse(status_code=response.status_code, content=response.json())
         except Exception:
-            return PlainTextResponse(status_code=r.status_code, content=r.text)
-    return PlainTextResponse(status_code=r.status_code, content=r.text)
-
-# ---------- API del ESP: endpoints específicos ----------
-
-
-@app.get("/api/esp/ls")
-async def esp_ls():
-    """
-    GET {ESP_HOST}/ls
-    Devuelve {"files": [...]} según tu firmware.
-    """
-    try:
-        r = await _esp_get("/ls")
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+            pass
+    return JSONResponse(
+        status_code=response.status_code,
+        content={"ok": False, "text": response.text},
+    )
 
 
-@app.get("/api/esp/cat")
-async def esp_cat(file: str = Query(..., description="Nombre de archivo")):
-    """
-    GET {ESP_HOST}/cat?file=<nombre>
-    Devuelve {"file": "...", "content": "..."} o error JSON.
-    """
-    try:
-        r = await _esp_get("/cat", {"file": file})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
+def _offline_response(device: dict, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=502,
+        content={
+            "ok": False,
+            "error": "esp32_unreachable",
+            "device": device.get("name"),
+            "base_url": device.get("base_url"),
+            "detail": str(exc),
+        },
+    )
 
 
-@app.post("/upload")
-async def upload_file(data: UploadFile):
-    filename = data.filename
-    content = data.content
-    # guardar en disco, por ej:
-    with open(filename, "w") as f:
-        f.write(content)
-    return {"status": "Archivo guardado", "file": filename}
-
-
-@app.post("/api/esp/rm")
-async def esp_rm(file: str = Query(..., description="Nombre de archivo a eliminar")):
-    """
-    Tu firmware acepta /rm (sin restricción de método).
-    Usamos POST desde la API para acciones destructivas.
-    Internamente hace GET {ESP_HOST}/rm?file=<nombre>.
-    """
-    try:
-        # podríamos usar GET directo porque tu firmware lo maneja así
-        r = await _esp_get("/rm", {"file": file})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
-
-@app.api_route("/api/esp", methods=["GET", "POST"])
-async def esp_exec(
-    request: Request,
-    cmd: str = Query(..., description="Comando para el ESP32"),
-    filename: str | None = Query(None, description="Nombre de archivo"),
-    body: str = Body("", media_type="text/plain")
-):
-    try:
-        if request.method == "GET":
-            # Ej: /api/esp?cmd=ls
-            r = await _esp_get(f"/{cmd}", {"file": filename} if filename else None)
-        else:
-            # Ej: /api/esp?cmd=upload&filename=main.py
-            r = await _esp_post(f"/{cmd}", {"filename": filename} if filename else None, data=body)
-
-        return _as_response(r)
-
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
-
-
-@app.post("/api/esp/zone")
-async def esp_zone(request: Request, body: str = Body("", media_type="text/plain"),
-                   zone: str | None = Query(None), action: str | None = Query(None),
-                   duration: int | None = Query(None)):
-    """
-    Proxy para encender/apagar zonas del ESP.
-    Formatos aceptados:
-      - Body corto: "zone1 on 3600" (zona, action, duration opcional)
-      - Query params: zone=<zona>, action=on|off, duration=<s>
-
-    Reenvía a {ESP_HOST}/zone?zone=...&action=...&duration=...
-    """
-    # Priorizar query params si están presentes
-    z = zone
-    a = action
-    d = duration
-
-    # Si no vienen en query, intentar parsear el body corto
-    if not z and body:
-        # body puede venir con newline; tomamos la primera linea
-        first = body.splitlines()[0].strip()
-        if first:
-            parts = first.split()
-            if len(parts) >= 1:
-                z = parts[0]
-            if len(parts) >= 2:
-                a = parts[1]
-            if len(parts) >= 3:
-                try:
-                    d = int(parts[2])
-                except Exception:
-                    d = None
-
-    if not z:
-        return JSONResponse(status_code=400, content={"error": "zone requerido"})
-
-    params = {"zone": z}
-    if a:
-        params["action"] = a
-    if d is not None:
-        params["duration"] = str(d)
-
-    try:
-        # Usamos GET porque el firmware acepta GET para /zone (como otros endpoints)
-        r = await _esp_get("/zone", params)
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
-
-@app.get("/api/esp/execute")
-async def esp_execute(code: str = Query(..., description="Código Python a ejecutar en ESP32")):
-    """
-    Ejecuta código Python en el ESP32.
-    
-    Ejemplos:
-      - /api/esp/execute?code=pin=Pin(2,Pin.IN)%0Aprint(pin.value())
-      - /api/esp/execute?code=print(machine.freq())
-    
-    Retorna: {"result": "salida", "error": null}
-    """
-    try:
-        r = await _esp_get("/execute", {"code": code})
-        return _as_response(r)
-    except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={"error": "timeout"})
-    except httpx.RequestError as e:
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
-# ---------- Frontend ----------
-app.mount("/static", StaticFiles(directory="static"), name="static")
+def _model_payload(model):
+    dump = getattr(model, "model_dump", None)
+    if dump is not None:
+        return dump()
+    return model.dict()
 
 
 @app.get("/")
 def root():
-    return FileResponse("static/index.html")
+    index_path = STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {
+        "ok": True,
+        "service": "riego-v3-backend",
+        "devices": [d["name"] for d in store.list_devices()],
+    }
 
 
+@app.get("/health")
+def health():
+    return {"ok": True}
 
-@app.get("/control_panel")
-def control_panel():
-    """Sirve la página Control Panel (static/control_panel.html)"""
-    return FileResponse("static/control_panel.html")
-# python -m uvicorn app.main:app --reload
-# python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-## On EC2 instance:
-# ssh -i "am-server-keypair.pem" ubuntu@ec2-56-124-102-170.sa-east-1.compute.amazonaws.com
-# http://56.124.102.170:8000
+@app.get("/devices")
+def list_devices():
+    return {"ok": True, "devices": store.list_devices()}
+
+
+@app.post("/devices")
+def create_device(payload: DeviceCreate):
+    device = store.upsert_device(_model_payload(payload))
+    return {"ok": True, "device": device}
+
+
+@app.get("/devices/{name}")
+def get_device(name: str):
+    device = store.get_device(name)
+    if not device:
+        raise HTTPException(status_code=404, detail="device_not_found")
+    return {"ok": True, "device": device}
+
+
+@app.patch("/devices/{name}")
+def update_device(name: str, payload: DeviceUpdate):
+    try:
+        device = store.patch_device(name, _model_payload(payload))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="device_not_found")
+    return {"ok": True, "device": device}
+
+
+@app.delete("/devices/{name}")
+def delete_device(name: str):
+    try:
+        store.delete_device(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="device_not_found")
+    return {"ok": True}
+
+
+@app.get("/devices/{name}/health")
+async def device_health(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).health()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/status")
+async def device_status(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).status()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/pins")
+async def device_pins(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).list_pins()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/pins/{pin}")
+async def device_pin(name: str, pin: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).get_pin(pin)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/pins/{pin}/on")
+async def device_pin_on(name: str, pin: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).pin_on(pin)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/pins/{pin}/off")
+async def device_pin_off(name: str, pin: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).pin_off(pin)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/pins/{pin}/toggle")
+async def device_pin_toggle(name: str, pin: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).pin_toggle(pin)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/pins/{pin}/run_for")
+async def device_pin_run_for(name: str, pin: str, payload: RunForRequest):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).pin_run_for(pin, payload.seconds, payload.value)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/pins/{pin}/set")
+async def device_pin_set(name: str, pin: str, payload: PinSetRequest):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).set_pin(pin, payload.value)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/sensors")
+async def device_sensors(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).list_sensors()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/sensors/{sensor}")
+async def device_sensor(name: str, sensor: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).get_sensor(sensor)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/actions")
+async def device_actions(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).list_actions()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/jobs")
+async def device_jobs(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).list_jobs()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/environment")
+async def device_environment(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).environment()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.get("/devices/{name}/programs")
+async def device_programs(name: str):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).list_programs()
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/programs")
+async def device_program_create(name: str, payload: ProgramCreate):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).create_program(_model_payload(payload))
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.put("/devices/{name}/programs/{program_id}")
+async def device_program_update(name: str, program_id: int, payload: ProgramUpdate):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).update_program(program_id, _model_payload(payload))
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.delete("/devices/{name}/programs/{program_id}")
+async def device_program_delete(name: str, program_id: int):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).delete_program(program_id)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/actions/{action}")
+async def device_action(name: str, action: str, payload: ActionRequest):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).run_action(action, payload.payload)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
+
+
+@app.post("/devices/{name}/execute")
+async def device_execute(name: str, payload: ExecuteRequest):
+    device = _ensure_device(name)
+    try:
+        response = await Esp32Client(device).execute(payload.name, payload.args)
+        return _response_from_httpx(response)
+    except httpx.RequestError as exc:
+        return _offline_response(device, exc)
