@@ -1,0 +1,9 @@
+{
+  "esp32-lab": {
+    "name": "esp32-lab",
+    "base_url": "http://192.168.1.50",
+    "api_key": "",
+    "description": "ESP32 principal",
+    "enabled": true
+  }
+}

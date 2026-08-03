@@ -1,5 +1,0 @@
-WIFI_SSID = "Telecentro-XXXX"
-WIFI_PASS = "ANDJKASHDASBH"
-HTTP_USER = "admin"
-HTTP_PASS = "1234"
-sleep_interval = "10"

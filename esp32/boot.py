@@ -1,29 +1,40 @@
-import json
-from machine import Pin
-
-CONFIG_PATH = "config_riego.json"
-
-def safe_high(pins):
-    """Inicializa cada pin en HIGH para relé activo LOW"""
-    for p in pins:
-        Pin(p, Pin.OUT, value=1)
+try:
+    from machine import Pin
+    import config
+except Exception:
+    Pin = None
+    config = None
 
 
-DEFAULT_SAFE_PINS = [19,5,18,25,26,27]
+def _logical_to_raw(logical_value, active_low):
+    if active_low:
+        return 0 if logical_value else 1
+    return 1 if logical_value else 0
+
+
+def _safe_start_outputs():
+    if Pin is None or config is None:
+        return
+
+    pins = getattr(config, "PINS", {})
+    for _, pin_cfg in pins.items():
+        if pin_cfg.get("mode", "out") != "out":
+            continue
+
+        pin_num = pin_cfg.get("pin")
+        if pin_num is None:
+            continue
+
+        active_low = bool(pin_cfg.get("active_low", False))
+        default_state = bool(pin_cfg.get("default", False))
+
+        pin = Pin(pin_num, Pin.OUT)
+        pin.value(_logical_to_raw(default_state, active_low))
+
 
 try:
-    from server_utils import log
-    with open(CONFIG_PATH, "r") as f:
-        cfg = json.load(f)
-    
-    zone_pins = list(cfg.get("zones", {}).values())
-    if zone_pins:
-        safe_high(zone_pins)
-        log(f"Relés activados HIGH en boot para las zonas: {zone_pins}")
-    else:
-        safe_high(DEFAULT_SAFE_PINS)
-        log("No se encontraron zonas en config, usando pines por defecto")
-except Exception as e:
-    safe_high(DEFAULT_SAFE_PINS)
-    print("Error leyendo config.json en boot.py:", e)
-    log(f"Error leyendo config.json en boot.py:, {e}")
+    _safe_start_outputs()
+except Exception:
+    # El arranque no debe morir por un error de inicializacion.
+    pass
+

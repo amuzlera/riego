@@ -1,89 +1,86 @@
-import sys
-import uasyncio as asyncio
-import network, config, machine, time
-from machine import WDT
-from server_utils import log
-from server import start_server
-from task import riego_scheduler_loop
+try:
+    import uasyncio as asyncio
+except ImportError:
+    import asyncio
+
+import network
+
+import config
+from actions import build_action_registry
+from hardware import Device
+from http_server import start_server
+from scheduler import JobScheduler
+from programs import WeeklyProgramScheduler
 from time_utils import sync_time_from_ntp
 
 
-async def safe_task(name, coro):
-    try:
-        await coro
-    except Exception as e:
-        import io
-        # Capturar el traceback en un buffer
-        output = io.StringIO()
-        sys.print_exception(e, output)
-        tb_str = output.getvalue()
-        output.close()
-        
-        log(f"Tarea '{name}' falló: {e}")
-        log(f"Traceback:\n{tb_str}")
-
-
-
-wdt = WDT(timeout=20000)
-last_ok = time.time()
-
-def heartbeat():
-    global last_ok
-    last_ok = time.time()
-
-async def healthcheck():
-    global last_ok
-    while True:
-        await asyncio.sleep(5)
-        if time.time() - last_ok > 10:
-            log("Healthcheck falló, reseteando...")
-            machine.reset()
-        wdt.feed()
-
 async def connect_wifi():
-    sta_if = network.WLAN(network.STA_IF)
-    if not sta_if.isconnected():
-        log("Conectando a WiFi...")
-        sta_if.active(True)
-        sta_if.connect(config.WIFI_SSID, config.WIFI_PASS)
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
 
-        while not sta_if.isconnected():
-            await asyncio.sleep(0.5)
+    static_ifconfig = getattr(config, "STATIC_IFCONFIG", None)
+    if static_ifconfig:
+        wlan.ifconfig(static_ifconfig)
 
-    ip = sta_if.ifconfig()[0]
-    log(f"Conectado a WiFi. IP: {ip}")
-    heartbeat()
-    return ip
+    if not wlan.isconnected():
+        ssid = getattr(config, "WIFI_SSID", "")
+        password = getattr(config, "WIFI_PASSWORD", "")
+        if not ssid:
+            raise RuntimeError("Falta WIFI_SSID en config.py")
+
+        wlan.connect(ssid, password)
+
+        timeout_seconds = int(getattr(config, "WIFI_TIMEOUT_SECONDS", 15))
+        for _ in range(timeout_seconds * 10):
+            if wlan.isconnected():
+                break
+            await asyncio.sleep(0.1)
+
+    if not wlan.isconnected():
+        raise RuntimeError("No se pudo conectar al WiFi")
+
+    return wlan
+
 
 async def main():
-    log("Iniciando sistema")
+    device = Device(getattr(config, "PINS", {}), getattr(config, "SENSORS", {}))
+    actions = build_action_registry(device)
+    scheduler = JobScheduler(device)
+    program_scheduler = WeeklyProgramScheduler(
+        device,
+        storage_path="programs.json",
+        tz_offset_seconds=int(getattr(config, "TZ_OFFSET_SECONDS", 10800)),
+    )
 
-    await connect_wifi()
+    wlan = await connect_wifi()
+    ip = wlan.ifconfig()[0]
+    print("Device:", getattr(config, "DEVICE_NAME", "esp32"))
+    print("IP:", ip)
 
-    log("Sincronizando hora con NTP...")
-    t = sync_time_from_ntp()
-    log(f"Hora actual: {t}")
-    heartbeat()
+    print("Syncing time from NTP...")
+    sync_time_from_ntp(
+        host=getattr(config, "NTP_HOST", "pool.ntp.org"),
+        tz_offset_seconds=int(getattr(config, "TZ_OFFSET_SECONDS", 10800)),
+    )
 
-    asyncio.create_task(safe_task("server", start_server()))
-    asyncio.create_task(safe_task("riego_scheduler", riego_scheduler_loop(poll_s=5)))
-    asyncio.create_task(safe_task("healthcheck", healthcheck()))
+    scheduler.restore_pending_jobs()
+    program_scheduler.reconcile()
 
-    while True:
-        heartbeat()
-        await asyncio.sleep(1)
+    server = await start_server(device, actions, scheduler, program_scheduler)
+    print("HTTP listening on port", getattr(config, "HTTP_PORT", 80))
 
-print("RUNNING MAIN")
-asyncio.run(main())
+    asyncio.create_task(scheduler.loop(poll_s=1))
+    asyncio.create_task(program_scheduler.loop(poll_s=30))
 
-'''
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/ls.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/cat.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/upload.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/rm.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/endpoints/__init__.py :endpoints/
-mpremote connect /dev/ttyUSB0 fs cp esp32/server.py :
-mpremote connect /dev/ttyUSB0 fs cp esp32/server_utils.py :
-mpremote connect /dev/ttyUSB0 fs cp esp32/main.py :
-mpremote connect /dev/ttyUSB0 fs cp esp32/task.py :
-'''
+    try:
+        while True:
+            await asyncio.sleep(1)
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+try:
+    asyncio.run(main())
+except KeyboardInterrupt:
+    pass
