@@ -69,6 +69,23 @@ PYTHONPATH=/ruta/a/riegov3 python -m uvicorn app.main:app --reload --host 0.0.0.
 
 La UI web queda en `/` y toma los dispositivos desde `GET /devices`.
 
+## Editor simple de archivos
+
+La sección «Archivos del ESP32» permite listar y leer archivos, ver el contenido
+remoto a la izquierda, editar a la derecha y enviarlo. El reinicio se solicita
+con un botón separado. Los archivos protegidos son de solo lectura.
+
+El backend habla con mantenimiento en el mismo host del dispositivo, puerto 81,
+usando su misma `api_key` (actualmente vacía, sin autenticación). No se configura
+otra clave. La escritura web se realiza en el ESP32, no en el checkout local.
+
+- `GET /devices/{name}/files`
+- `GET /devices/{name}/files/{filename}`
+- `PUT /devices/{name}/files/{filename}` con `{"content": "..."}`
+- `POST /devices/{name}/maintenance/reset`
+
+El despliegue local actual publica esta UI en `http://localhost:8002/`.
+
 ## Programador
 
 Los programas semanales se crean por pin y aceptan:

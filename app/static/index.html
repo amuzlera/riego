@@ -132,6 +132,34 @@
         <div id="pinsGrid" class="grid"></div>
       </section>
 
+      <section class="panel" aria-labelledby="filesTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="filesTitle">Archivos del ESP32</h2>
+            <p>Leé un archivo, editá su contenido y envialo al dispositivo seleccionado.</p>
+          </div>
+          <button id="filesRefresh" class="button ghost">Listar archivos</button>
+        </div>
+        <div class="file-toolbar">
+          <label for="fileSelect">Archivo</label>
+          <select id="fileSelect" class="select" disabled></select>
+          <button id="fileRead" class="button ghost" disabled>Leer</button>
+        </div>
+        <div class="file-columns">
+          <label for="fileOriginal">Contenido en el ESP32
+            <textarea id="fileOriginal" class="input file-editor" readonly spellcheck="false"></textarea>
+          </label>
+          <label for="fileEdited">Contenido para enviar
+            <textarea id="fileEdited" class="input file-editor" readonly spellcheck="false"></textarea>
+          </label>
+        </div>
+        <div class="file-toolbar">
+          <button id="fileSend" class="button on" disabled>Enviar al ESP32</button>
+          <button id="fileReset" class="button ghost">Reiniciar ESP32</button>
+        </div>
+        <p id="fileMessage" class="file-message" role="status" aria-live="polite"></p>
+      </section>
+
       <section class="panel small">
         <div class="panel-head">
           <div>
@@ -144,5 +172,6 @@
     </main>
 
     <script src="/static/app.js"></script>
+    <script src="/static/files.js"></script>
   </body>
 </html>
