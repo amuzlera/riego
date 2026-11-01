@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .esp32_client import Esp32Client
+from .files_api import router as files_router
 from .schemas import (
     ActionRequest,
     DeviceCreate,
@@ -24,6 +25,7 @@ from .storage import reading_store, store
 
 
 app = FastAPI(title="Riego v3 Backend")
+app.include_router(files_router)
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 SENSOR_POLL_INTERVAL_SECONDS = 600

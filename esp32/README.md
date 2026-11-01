@@ -2,6 +2,11 @@
 
 Firmware minimal para el ESP32.
 
+Actualización 2026-11-01: `main.py` inicia el servicio independiente de recuperación
+en puerto 81 antes de importar `controller.py` (control de riego y API puerto 80).
+Para leer/escribir archivos por Wi-Fi, configuración, autenticación y recuperación
+ante errores, consultar [RECOVERY.md](RECOVERY.md).
+
 Objetivo:
 - conectar a Wi-Fi
 - exponer HTTP simple
